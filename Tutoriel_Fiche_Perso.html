@@ -394,6 +394,70 @@
       font-family: monospace;
       color: var(--accent);
     }
+
+  /* ── Navigation latérale (dots) ── */
+  #nav-float {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+  }
+
+  .nav-dot {
+    display: block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(31,58,54,0.22);
+    border: 1.5px solid rgba(31,58,54,0.40);
+    cursor: pointer;
+    transition: background 0.18s, transform 0.18s, border-color 0.18s;
+    text-decoration: none;
+    position: relative;
+  }
+
+  .nav-dot:hover {
+    background: rgba(31,58,54,0.80);
+    border-color: rgba(31,58,54,0.95);
+    transform: scale(1.35);
+  }
+
+  .nav-dot.active {
+    background: #1f3a36;
+    border-color: #2c4b46;
+    transform: scale(1.25);
+  }
+
+  .nav-dot .nav-dot-label {
+    position: absolute;
+    right: 22px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(20,35,28,0.93);
+    border: 1px solid rgba(31,58,54,0.35);
+    color: #e3c97a;
+    font-size: 11px;
+    white-space: nowrap;
+    padding: 3px 9px;
+    border-radius: 5px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  .nav-dot:hover .nav-dot-label {
+    opacity: 1;
+  }
+
+  @media (max-width: 900px) {
+    #nav-float { display: none; }
+  }
   </style>
 </head>
 <body>
@@ -861,5 +925,47 @@
   </footer>
 
 </div>
+
+<nav id="nav-float">
+  <a class="nav-dot" href="#joueurs-existants" data-section="joueurs-existants"><span class="nav-dot-label">Tu as déjà une fiche ?</span></a>
+  <a class="nav-dot" href="#s1" data-section="s1"><span class="nav-dot-label">Informations du personnage</span></a>
+  <a class="nav-dot" href="#s2" data-section="s2"><span class="nav-dot-label">Valeurs de départ</span></a>
+  <a class="nav-dot" href="#s3" data-section="s3"><span class="nav-dot-label">Choisir ses compétences</span></a>
+  <a class="nav-dot" href="#s4" data-section="s4"><span class="nav-dot-label">La pastille d'information ℹ</span></a>
+  <a class="nav-dot" href="#s5" data-section="s5"><span class="nav-dot-label">Sélectionner / désélectionner</span></a>
+  <a class="nav-dot" href="#s6" data-section="s6"><span class="nav-dot-label">Les différents types de prérequis</span></a>
+  <a class="nav-dot" href="#s7" data-section="s7"><span class="nav-dot-label">Recettes</span></a>
+  <a class="nav-dot" href="#s8" data-section="s8"><span class="nav-dot-label">Historique du personnage</span></a>
+  <a class="nav-dot" href="#s9" data-section="s9"><span class="nav-dot-label">XP investis dans la trame</span></a>
+  <a class="nav-dot" href="#s10" data-section="s10"><span class="nav-dot-label">Résumé des choix</span></a>
+  <a class="nav-dot" href="#s11" data-section="s11"><span class="nav-dot-label">Commentaires à l'organisation</span></a>
+  <a class="nav-dot" href="#s12" data-section="s12"><span class="nav-dot-label">Exportation et envoi</span></a>
+  <a class="nav-dot" href="#s13" data-section="s13"><span class="nav-dot-label">La fiche condensée imprimable</span></a>
+</nav>
+
+<script>
+(function() {
+  const sections = [
+    "joueurs-existants","s1","s2","s3","s4","s5","s6","s7",
+    "s8","s9","s10","s11","s12","s13"
+  ];
+
+  function updateActiveDot() {
+    const scrollY = window.scrollY + window.innerHeight * 0.35;
+    let current = sections[0];
+    for (const id of sections) {
+      const el = document.getElementById(id);
+      if (el && el.offsetTop <= scrollY) current = id;
+    }
+    document.querySelectorAll(".nav-dot").forEach(dot => {
+      dot.classList.toggle("active", dot.dataset.section === current);
+    });
+  }
+
+  window.addEventListener("scroll", updateActiveDot, { passive: true });
+  updateActiveDot();
+})();
+</script>
+
 </body>
 </html>
