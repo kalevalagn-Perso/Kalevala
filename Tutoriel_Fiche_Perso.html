@@ -62,11 +62,14 @@
 
     /* ── HERO ── */
     .hero {
-      background: linear-gradient(135deg, #1a3530 0%, #274540 50%, #203230 100%);
+      background:
+        linear-gradient(90deg, rgba(13,24,24,0.92) 0%, rgba(25,52,52,0.74) 45%, rgba(106,148,140,0.24) 100%),
+        url("Signet.jpg") center / cover no-repeat;
       border-radius: var(--radius);
       padding: 42px 48px;
       margin-bottom: 28px;
-      box-shadow: var(--shadow);
+      box-shadow: 0 22px 46px rgba(19, 34, 31, 0.24);
+      border: 1px solid rgba(60, 83, 75, 0.35);
       position: relative;
       overflow: hidden;
     }
@@ -74,7 +77,18 @@
       content: "";
       position: absolute;
       inset: 0;
-      background: radial-gradient(circle at 80% 50%, rgba(198,170,115,0.12), transparent 60%);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0)),
+        linear-gradient(90deg, rgba(255,255,255,0.02), transparent 35%, transparent 65%, rgba(255,255,255,0.02));
+      pointer-events: none;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border: 1px solid rgba(241, 225, 184, 0.16);
+      border-radius: 18px;
+      pointer-events: none;
     }
     .hero-kicker {
       font-family: "Cinzel", serif;
