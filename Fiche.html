@@ -45,7 +45,7 @@
     background:
       radial-gradient(circle at top, rgba(145,177,169,0.22), transparent 35%),
       linear-gradient(rgba(227,232,224,0.88), rgba(227,232,224,0.92)),
-      url("Signet recto 38x150.jpg") center top / cover fixed;
+      url("Signet.jpg") center top / cover fixed;
   }
 
   body::before {
@@ -471,7 +471,7 @@
     border-radius: 24px;
     background:
       linear-gradient(90deg, rgba(13,24,24,0.92) 0%, rgba(25,52,52,0.74) 45%, rgba(106,148,140,0.24) 100%),
-      url("Signet recto 38x150.jpg") center / cover no-repeat;
+      url("Signet.jpg") center / cover no-repeat;
     box-shadow: 0 22px 46px rgba(19, 34, 31, 0.24);
     border: 1px solid rgba(60, 83, 75, 0.35);
   }
@@ -501,7 +501,7 @@
     display: flex;
     align-items: center;
     gap: 24px;
-    padding: 30px 32px;
+    padding: 30px 36px 30px 32px;
     min-height: 210px;
   }
 
@@ -957,9 +957,12 @@
           <h1 class="hero-title">Kalevala</h1>
           <div class="hero-subtitle alt-style">La Contrée des Héros</div>
         </div>
-        <div style="display:flex;flex-direction:column;justify-content:flex-end;align-self:stretch;padding-bottom:4px;text-align:center;margin-left:auto;">
-          <div id="hero-version-num" style="font-family:'Cinzel',serif;font-size:22px;font-weight:700;color:var(--accent-gold-soft,#c6aa73);line-height:1;"></div>
-          <div style="color:rgba(245,239,224,0.55);font-size:10px;text-transform:uppercase;letter-spacing:0.14em;font-family:'Inter',sans-serif;margin-top:3px;">Version</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;align-self:stretch;padding:4px 0 4px 0;text-align:right;margin-left:auto;gap:12px;min-width:90px;">
+          <a href="https://kalevalagn-perso.github.io/Kalevala/Tutoriel_Fiche_Perso.html" target="_blank" rel="noopener" style="position:relative;z-index:10;display:inline-block;font-family:'Cinzel',serif;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent-gold-soft,#c6aa73);border:1px solid rgba(198,170,115,0.45);border-radius:7px;padding:6px 14px;text-decoration:none;background:rgba(158,127,68,0.12);cursor:pointer;" onmouseover="this.style.background='rgba(158,127,68,0.28)';this.style.borderColor='rgba(198,170,115,0.8)';" onmouseout="this.style.background='rgba(158,127,68,0.12)';this.style.borderColor='rgba(198,170,115,0.45)';">Tutoriel</a>
+          <div style="text-align:center;">
+            <div id="hero-version-num" style="font-family:'Cinzel',serif;font-size:22px;font-weight:700;color:var(--accent-gold-soft,#c6aa73);line-height:1;"></div>
+            <div style="color:rgba(245,239,224,0.55);font-size:10px;text-transform:uppercase;letter-spacing:0.14em;font-family:'Inter',sans-serif;margin-top:3px;">Version</div>
+          </div>
         </div>
       </div>
     </header>
