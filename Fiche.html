@@ -2385,6 +2385,8 @@ const calendrierGN = []; // calendrier GN fourni par l’organisation
 
 const participationsGN = []; // participations GN déjà enregistrées par l’organisation
 
+let domaineMortOrgaDebloque = false; // déblocage spécial Domaine de la Mort accordé par l'organisation
+
 function getCleSelection(type, id) {
   return `${type}||${id}`;
 }
@@ -2592,6 +2594,10 @@ function getTousLesDomainesActifs() {
       domaines.push(domaine);
     }
   });
+
+  if (domaineMortOrgaDebloque && !domaines.includes("Mort")) {
+    domaines.push("Mort");
+  }
 
   return domaines;
 }
@@ -4687,7 +4693,25 @@ appliquerSelectionsImportees(data.acquis_valides?.competences, "competence", tru
   chargerRecettesDepuisJson(data.recettes?.acquis_valides || {}, recettesValidees);
   chargerRecettesDepuisJson(data.recettes?.demandes_nouvelles || {}, recettesDemandes);
 
+  // Lire le déblocage spécial Domaine de la Mort accordé par l'organisation
+  domaineMortOrgaDebloque = data.magie?.deblocages_speciaux?.domaine_mort?.debloque === true;
+
   renderDomainesSupplementaires();
+
+  // Afficher le badge Mort si débloqué par l'organisation (hors Versatile)
+  (function() {
+    const zone = document.getElementById("zone-domaines-supplementaires");
+    const badgeExistant = document.getElementById("badge-domaine-mort-orga");
+    if (badgeExistant) badgeExistant.remove();
+
+    if (domaineMortOrgaDebloque) {
+      const badge = document.createElement("div");
+      badge.id = "badge-domaine-mort-orga";
+      badge.style.cssText = "margin-top:8px;padding:6px 12px;background:rgba(139,30,30,0.12);border:1px solid rgba(139,30,30,0.35);border-radius:8px;color:#8b1e1e;font-size:0.92em;display:flex;align-items:center;gap:8px;";
+      badge.innerHTML = '<span style="font-size:1.1em;">💀</span><span><strong>Mort</strong> — domaine débloqué par l\'organisation</span>';
+      zone.appendChild(badge);
+    }
+  })();
 
 if (domainesSupplementairesImportes.length > 0) {
   const selects = document.querySelectorAll(".select-domaine-supplementaire");
@@ -4824,7 +4848,21 @@ function construireExportJSON() {
     magie: {
 
       domaine_principal: getDomaineChoisi(),
-      domaines_supplementaires: getDomainesSecondairesSelectionnes()
+      domaines_supplementaires: (function() {
+        const sups = getDomainesSecondairesSelectionnes();
+        if (domaineMortOrgaDebloque && !sups.includes("Mort")) {
+          sups.push("Mort");
+        }
+        return sups;
+      })(),
+      ...(domaineMortOrgaDebloque ? {
+        deblocages_speciaux: {
+          domaine_mort: {
+            debloque: true,
+            debloque_par: "Organisation Kalevala"
+          }
+        }
+      } : {})
 
     },
 
