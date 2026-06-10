@@ -1298,12 +1298,34 @@ function verifierProgressionGN(type, id, niveauVise) {
     return { ok: true, raison: "" };
   }
 
-  if (niveauActuel !== niveauVise - 1) {
+  // Cas normal : progression séquentielle vers le haut
+  // Cas trou : niveauActuel > niveauVise (ex: niveau 3 acquis en jeu, joueur achète niveau 2)
+  // Dans ce cas on vérifie la progression par rapport au niveau précédent officiellement validé
+  if (niveauActuel !== niveauVise - 1 && niveauActuel <= niveauVise) {
     return { ok: false, raison: "Niveau précédent requis" };
   }
 
+  // Pour un trou (niveauActuel > niveauVise), vérifier que le niveau précédent est acquis officiellement
+  const niveauReference = niveauVise - 1;
+  const metaPrecedent = getMetaAcquisitionNiveau(type, id, niveauReference);
+  const precedentOfficiel = metaPrecedent != null && metaPrecedent.date_acquisition !== "EN_ATTENTE";
+
   const cleHistorique = `${type}-${id}`;
   const acquisition = historiqueAcquisitions.get(cleHistorique);
+
+  // Si on comble un trou ET le niveau précédent est officiel, utiliser sa date pour la vérif GN
+  if (niveauActuel > niveauVise && precedentOfficiel) {
+    // Vérifier les GN depuis l'acquisition du niveau précédent
+    const gnIndexPrecedent = metaPrecedent.gn_id
+      ? calendrierGN.findIndex(gn => gn.gn_id === metaPrecedent.gn_id)
+      : -1;
+    const nbParticipations = compterParticipationsDepuisGnIndex(gnIndexPrecedent);
+    if (nbParticipations < 2) {
+      const restant = 2 - nbParticipations;
+      return { ok: false, raison: `Disponible dans ${restant} GN` };
+    }
+    return { ok: true, raison: "" };
+  }
 
   if (!acquisition) {
     return { ok: false, raison: "Historique du niveau précédent manquant" };
@@ -1952,7 +1974,7 @@ const sortsData = [
   { id: "fausse_vie", nom: "Fausse vie", type: "sort", categorie: "Mort", niveau_min: 1, niveau_max: 3, prerequis: [], regles_speciales: [] },
   { id: "frayeur", nom: "Frayeur", type: "sort", categorie: "Mort", niveau_min: 1, niveau_max: 3, prerequis: [], regles_speciales: [] },
   { id: "nuage_mort", nom: "Nuage de mort", type: "sort", categorie: "Mort", niveau_min: 1, niveau_max: 3, prerequis: [], regles_speciales: [] },
-  { id: "parler_ames_errantes", nom: "Parler aux âmes érrantes", type: "sort", categorie: "Mort", niveau_min: 1, niveau_max: 3, prerequis: [], regles_speciales: [] },
+  { id: "perce_voile", nom: "Percer le voile", type: "sort", categorie: "Mort", niveau_min: 1, niveau_max: 3, prerequis: [], regles_speciales: [] },
   { id: "parler_morts", nom: "Parler aux morts", type: "sort", categorie: "Mort", niveau_min: 1, niveau_max: 3, prerequis: [], regles_speciales: [] },
   { id: "repos", nom: "Repos", type: "sort", categorie: "Mort", niveau_min: 1, niveau_max: 3, prerequis: [], regles_speciales: [] },
   { id: "toucher_necrotique", nom: "Toucher nécrotique", type: "sort", categorie: "Mort", niveau_min: 1, niveau_max: 3, prerequis: [], regles_speciales: [] },
@@ -2358,7 +2380,7 @@ const recettesData = {
   ]
 };
 
-const VERSION_FICHE = "V26.1";
+const VERSION_FICHE = "V26.2";
 
 const selections = new Map();
 const validationsFigees = new Map();
@@ -2384,8 +2406,6 @@ const recettesDemandes = { alchimie: new Map(), herboristerie: new Map(), poison
 const calendrierGN = []; // calendrier GN fourni par l’organisation
 
 const participationsGN = []; // participations GN déjà enregistrées par l’organisation
-
-let domaineMortOrgaDebloque = false; // déblocage spécial Domaine de la Mort accordé par l'organisation
 
 function getCleSelection(type, id) {
   return `${type}||${id}`;
@@ -2594,10 +2614,6 @@ function getTousLesDomainesActifs() {
       domaines.push(domaine);
     }
   });
-
-  if (domaineMortOrgaDebloque && !domaines.includes("Mort")) {
-    domaines.push("Mort");
-  }
 
   return domaines;
 }
@@ -3225,14 +3241,16 @@ function getCoutSelection(item) {
   let total = 0;
   const acquisitions = item?.acquisitions_niveaux || {};
 
-  for (let niveau = 1; niveau <= Number(item.niveau_choisi || 0); niveau++) {
-    const meta = acquisitions[String(niveau)] || acquisitions[niveau];
+  // Itérer uniquement sur les niveaux explicitement présents dans acquisitions_niveaux
+  // Les niveaux absents (trous non sélectionnés) ne sont pas comptés
+  Object.entries(acquisitions).forEach(([n, meta]) => {
+    const niveau = Number(n);
+    if (!niveau || niveau <= 0) return;
+    if (niveau > Number(item.niveau_choisi || 0)) return;
     const mode = ["jeu", "auto"].includes(meta?.mode) ? meta.mode : "xp";
-
-    if (mode !== "jeu" && mode !== "auto") {
-      total += calculerCoutNiveau(coutBase, niveau);
-    }
-  }
+    if (mode === "jeu" || mode === "auto") return; // gratuit
+    total += calculerCoutNiveau(coutBase, niveau);
+  });
 
   return total;
 }
@@ -3463,7 +3481,14 @@ function peutAcheterNiveau(type, id, niveauVise) {
 
   const niveauActuel = getNiveauSelectionne(type, id);
 
-  if (niveauVise <= niveauActuel) {
+  // Un niveau déjà explicitement acquis (validé officiellement ou sélectionné sans trou) est toujours ok
+  // MAIS si niveau_choisi > niveauVise à cause d'un trou (acquisition en jeu d'un niveau supérieur),
+  // le niveau inférieur doit passer par les vérifications normales (prérequis, budget, GN)
+  const metaNiveauVise = getMetaAcquisitionNiveau(type, id, niveauVise);
+  const estOfficiel = metaNiveauVise != null && metaNiveauVise.date_acquisition !== "EN_ATTENTE";
+  const estEnAttente = metaNiveauVise != null && metaNiveauVise.date_acquisition === "EN_ATTENTE";
+
+  if (niveauVise <= niveauActuel && (estOfficiel || estEnAttente)) {
     return { ok: true, raison: "" };
   }
 
@@ -3477,6 +3502,20 @@ function peutAcheterNiveau(type, id, niveauVise) {
   }
 
   const niveauActuelApresAuto = getNiveauSelectionne(type, id);
+
+  // Vérification de séquence pour les niveaux dans un trou (non présents dans acquisitions officielles)
+  // Ex: niveau 3 acquis en jeu, le joueur veut niveau 2 sans avoir niveau 1
+  if (niveauVise > 1) {
+    const metaNiveauPrecedent = getMetaAcquisitionNiveau(type, id, niveauVise - 1);
+    const precedentOfficiel = metaNiveauPrecedent != null && metaNiveauPrecedent.date_acquisition !== "EN_ATTENTE";
+    const precedentEnAttente = metaNiveauPrecedent != null && metaNiveauPrecedent.date_acquisition === "EN_ATTENTE";
+    const precedentSelectionne = precedentOfficiel || precedentEnAttente;
+
+    // Si le niveau précédent n'est ni officiel ni sélectionné, bloquer
+    if (!precedentSelectionne) {
+      return { ok: false, raison: "Niveau précédent requis" };
+    }
+  }
 
   if (niveauVise > niveauActuelApresAuto + 1) {
     return { ok: false, raison: "Niveau précédent requis" };
@@ -3514,9 +3553,17 @@ if (!ignorerConditionDeuxGN(type, id)) {
     niveau_choisi: niveauActuelApresAuto
   }) : 0;
   const totalSansCetObjet = calculerTotalDepense() - coutActuel;
+
+  // Simuler l'ajout du niveau visé dans acquisitions_niveaux pour le calcul du coût total
+  const selectionActuelle = getSelection(type, id) || { type, id, niveau_choisi: 0, acquisitions_niveaux: {} };
+  const acquisitionsSimulees = {
+    ...(selectionActuelle.acquisitions_niveaux || {}),
+    [niveauVise]: metaNiveau || { mode: "xp", date_acquisition: "EN_ATTENTE", commentaire: "" }
+  };
   const totalAvecNouveau = totalSansCetObjet + getCoutSelection({
-    ...(getSelection(type, id) || { type, id, niveau_choisi: niveauVise, acquisitions_niveaux: {} }),
-    niveau_choisi: niveauVise
+    ...selectionActuelle,
+    niveau_choisi: Math.max(selectionActuelle.niveau_choisi || 0, niveauVise),
+    acquisitions_niveaux: acquisitionsSimulees
   });
 
   if (totalAvecNouveau > calculerXpTotalesDisponibles()) {
@@ -3535,11 +3582,25 @@ function setNiveauSelection(type, id, niveau) {
 
   if (niveau <= 0) {
     if (niveauValide > 0) {
+      // Supprimer les niveaux non officiels (rattrapage annulé) en ne gardant que ceux validés
+      const acquisitionsOfficiellesSeulement = {};
+      for (let n = 1; n <= niveauValide; n++) {
+        const meta = acquisitionsExistantes[String(n)] || acquisitionsExistantes[n];
+        if (meta) acquisitionsOfficiellesSeulement[n] = meta;
+      }
+      // Ne conserver que les niveaux présents dans la fiche officielle (mode jeu/auto ou validés)
+      // Les entrées mode xp avec date EN_ATTENTE sont des rattrapages non validés → à supprimer
+      const acquisitionsFiltrees = {};
+      for (const [n, meta] of Object.entries(acquisitionsOfficiellesSeulement)) {
+        if (meta.mode === "jeu" || meta.mode === "auto" || meta.date_acquisition !== "EN_ATTENTE") {
+          acquisitionsFiltrees[n] = meta;
+        }
+      }
       selections.set(cle, {
         type,
         id,
         niveau_choisi: niveauValide,
-        acquisitions_niveaux: extraireAcquisitionsJusquaNiveau(acquisitionsExistantes, niveauValide)
+        acquisitions_niveaux: acquisitionsFiltrees
       });
 
       const histValide = historiqueValide.get(cleHistorique);
@@ -3557,24 +3618,33 @@ function setNiveauSelection(type, id, niveau) {
     return;
   }
 
-  for (let n = 1; n <= niveau; n++) {
+  // Détecter si on comble un trou (niveau inférieur à niveauValide)
+  // cas : joueur choisit niveau 1 alors que niveau 2+ est déjà validé en jeu
+  const niveauChoisiCible = Math.max(niveau, selectionExistante?.niveau_choisi || 0, niveauValide);
+
+  for (let n = 1; n <= niveauChoisiCible; n++) {
     if (!acquisitionsExistantes[n]) {
       const niveauAutoActif = niveauAutomatiqueActif(type, id, n);
       const regleAuto = getRegleAcquisitionAutomatique(type, id);
 
-      acquisitionsExistantes[n] = {
-        mode: niveauAutoActif ? "auto" : "xp",
-        date_acquisition: niveauAutoActif ? "AUTO" : "EN_ATTENTE",
-        commentaire: niveauAutoActif ? (regleAuto?.commentaire || "") : ""
-      };
+      if (n <= niveau) {
+        // Niveau qu'on est en train de sélectionner ou inférieur : xp normal
+        acquisitionsExistantes[n] = {
+          mode: niveauAutoActif ? "auto" : "xp",
+          date_acquisition: niveauAutoActif ? "AUTO" : "EN_ATTENTE",
+          commentaire: niveauAutoActif ? (regleAuto?.commentaire || "") : ""
+        };
+      }
+      // Les niveaux supérieurs déjà validés en jeu sont déjà dans acquisitionsExistantes
+      // → on ne les touche pas, le if (!acquisitionsExistantes[n]) les protège
     }
   }
 
   selections.set(cle, {
     type,
     id,
-    niveau_choisi: niveau,
-    acquisitions_niveaux: extraireAcquisitionsJusquaNiveau(acquisitionsExistantes, niveau)
+    niveau_choisi: niveauChoisiCible,
+    acquisitions_niveaux: acquisitionsExistantes
   });
 
   refreshAffichage();
@@ -3692,9 +3762,17 @@ function creerCaseNiveau(type, definition, niveau) {
   const niveauActuel = getNiveauSelectionne(type, definition.id);
   const niveauValide = getNiveauValide(type, definition.id);
 
-  const estValide = niveau <= niveauValide;
-  const estSelectionActuelle = niveauActuel === niveau;
-  const estChoixTemporaire = estSelectionActuelle && niveau > niveauValide;
+  // Un niveau est "validé" seulement s'il est explicitement présent dans acquisitions_niveaux,
+  // ou si aucun niveau supérieur n'a été acquis en jeu en sautant ce niveau.
+  const metaCeNiveau = getMetaAcquisitionNiveau(type, definition.id, niveau);
+  // Un niveau est officiellement validé seulement si présent dans acquisitions_niveaux
+  // ET que ce n'est pas un rattrapage en attente (date EN_ATTENTE = sélectionné par joueur, pas encore validé org)
+  const estExplicitement = metaCeNiveau != null && metaCeNiveau.date_acquisition !== "EN_ATTENTE";
+  const estValide = niveau <= niveauValide && estExplicitement;
+  const estSelectionActuelle = niveauActuel >= niveau; // sélectionné si niveau_choisi >= ce niveau
+  // Temporaire si : dans la sélection ET pas encore validé officiellement
+  const estDansSelection = (getSelection(type, definition.id)?.acquisitions_niveaux || {})[String(niveau)] != null;
+  const estChoixTemporaire = !estValide && estDansSelection;
 
   const validation = peutAcheterNiveau(type, definition.id, niveau);
 
@@ -3702,7 +3780,7 @@ function creerCaseNiveau(type, definition, niveau) {
   coutDiv.className = "level-inline-cost";
   const metaNiveau = getMetaAcquisitionNiveau(type, definition.id, niveau);
   const modeNiveau = ["jeu", "auto"].includes(metaNiveau?.mode) ? metaNiveau.mode : "xp";
-  coutDiv.textContent = modeNiveau === "auto" ? "0 XP" : (modeNiveau === "jeu" ? "0 XP" : `${cout} XP`);
+  coutDiv.textContent = (modeNiveau === "auto" || modeNiveau === "jeu") ? "0 XP" : `${cout} XP`;
 
   const bouton = document.createElement("button");
 
@@ -4693,25 +4771,7 @@ appliquerSelectionsImportees(data.acquis_valides?.competences, "competence", tru
   chargerRecettesDepuisJson(data.recettes?.acquis_valides || {}, recettesValidees);
   chargerRecettesDepuisJson(data.recettes?.demandes_nouvelles || {}, recettesDemandes);
 
-  // Lire le déblocage spécial Domaine de la Mort accordé par l'organisation
-  domaineMortOrgaDebloque = data.magie?.deblocages_speciaux?.domaine_mort?.debloque === true;
-
   renderDomainesSupplementaires();
-
-  // Afficher le badge Mort si débloqué par l'organisation (hors Versatile)
-  (function() {
-    const zone = document.getElementById("zone-domaines-supplementaires");
-    const badgeExistant = document.getElementById("badge-domaine-mort-orga");
-    if (badgeExistant) badgeExistant.remove();
-
-    if (domaineMortOrgaDebloque) {
-      const badge = document.createElement("div");
-      badge.id = "badge-domaine-mort-orga";
-      badge.style.cssText = "margin-top:8px;padding:6px 12px;background:rgba(139,30,30,0.12);border:1px solid rgba(139,30,30,0.35);border-radius:8px;color:#8b1e1e;font-size:0.92em;display:flex;align-items:center;gap:8px;";
-      badge.innerHTML = '<span style="font-size:1.1em;">💀</span><span><strong>Mort</strong> — domaine débloqué par l\'organisation</span>';
-      zone.appendChild(badge);
-    }
-  })();
 
 if (domainesSupplementairesImportes.length > 0) {
   const selects = document.querySelectorAll(".select-domaine-supplementaire");
@@ -4848,21 +4908,7 @@ function construireExportJSON() {
     magie: {
 
       domaine_principal: getDomaineChoisi(),
-      domaines_supplementaires: (function() {
-        const sups = getDomainesSecondairesSelectionnes();
-        if (domaineMortOrgaDebloque && !sups.includes("Mort")) {
-          sups.push("Mort");
-        }
-        return sups;
-      })(),
-      ...(domaineMortOrgaDebloque ? {
-        deblocages_speciaux: {
-          domaine_mort: {
-            debloque: true,
-            debloque_par: "Organisation Kalevala"
-          }
-        }
-      } : {})
+      domaines_supplementaires: getDomainesSecondairesSelectionnes()
 
     },
 
@@ -5669,7 +5715,7 @@ const descriptionsData = {
       2: { desc: "Créer un nuage de mort qui inflige 1 point de dégâts nécrotique par chaque 3 secondes d'exposition à la fumée. Quiconque est exposé à la fumée est susceptible de subir les dégâts, y compris le lanceur de sorts. Requiert 4 points de puissance pour être lancé. Le joueur devra se procurer et utiliser une bombe fumigène blanche.", effet: "1 point de dégât/3 secondes d'exposition", mecanique: "Bombe fumigène lancée", duree: "Présence de la fumée", limitation: "1 par journée de jeu" },
       3: { desc: "Créer un nuage de mort qui inflige 1 point de dégâts nécrotique par chaque 3 secondes d'exposition à la fumée. Quiconque est exposé à la fumée est susceptible de subir les dégâts, y compris le lanceur de sorts. Requiert 3 points de puissance pour être lancé. Le joueur devra se procurer et utiliser une bombe fumigène blanche.", effet: "1 point de dégât/3 secondes d'exposition", mecanique: "Bombe fumigène lancée", duree: "Présence de la fumée", limitation: "2 par journée de jeu" }
     },
-    parler_ames_errantes: {
+    perce_voile: {
       1: { desc: "Permet de voir et parler aux âmes errantes tout en demeurant dans le monde des vivants pendant 30 minutes. Peut être lancé sur soi ou sur autrui.", effet: "Interaction âmes errantes", mecanique: "Toucher", duree: "30 minutes", limitation: "Sur soi ou autrui" },
       2: { desc: "Permet de passer partiellement dans le monde des morts pendant 30 minutes. Peut être lancé sur soi ou sur autrui. La personne sur qui est fait le sort se retrouve parmi les âmes errantes (le lanceur doit mettre une cagoule blanche). Par contre, elle ne peut pas interagir avec les autres âmes errantes car elle n'est pas vraiment morte. Comme une âme errante, elle ne peut pas interagir avec le monde des vivants (parler, prendre des choses, lancer des sorts, etc).", effet: "Passage partiel dans le monde des morts", mecanique: "Toucher", duree: "30 minutes", limitation: "Sur soi ou autrui" },
       3: { desc: "Permet de passer complètement dans le monde des morts pendant 1 heure. La personne sur qui est fait le sort se retrouve parmi les âmes errantes (le lanceur doit mettre une cagoule blanche). Elle peut interagir avec les autres âmes errantes. Peut être lancé sur soi ou sur autrui.", effet: "Passage dans le monde des morts", mecanique: "Toucher", duree: "60 minutes", limitation: "Sur soi ou autrui" }
