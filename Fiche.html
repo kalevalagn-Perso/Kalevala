@@ -1270,6 +1270,7 @@
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
      const XP_CREATION = 7;
      let modeFiche = "creation";
+     let idJoueur = ""; // UUID permanent généré à la première exportation
 
      function getIndexDernierGN() {
   const participations = getParticipationsGN();
@@ -2380,7 +2381,7 @@ const recettesData = {
   ]
 };
 
-const VERSION_FICHE = "V26.2";
+const VERSION_FICHE = "V26.3";
 
 const selections = new Map();
 const validationsFigees = new Map();
@@ -4682,6 +4683,7 @@ function importerFicheJSON(data) {
   reinitialiserFicheComplete();
 
   modeFiche = data.mode_fiche || "creation";
+  idJoueur = data.id_joueur || "";
 
   if (data.personnage) {
     document.getElementById("nom-joueur").value = data.personnage.nom_joueur || "";
@@ -4876,6 +4878,7 @@ function construireExportJSON() {
     mode_fiche: modeFiche,
     organisation: "Kalevala",
     date_export: new Date().toISOString(),
+    id_joueur: idJoueur || (idJoueur = crypto.randomUUID()),
 
     personnage: {
 
