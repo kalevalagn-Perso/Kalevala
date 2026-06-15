@@ -1288,7 +1288,7 @@ function compterParticipationsDepuisGnIndex(gnIndexReference) {
 
   return getParticipationsGN().filter(gn => {
     const indexGn = calendrierGN.findIndex(item => item.gn_id === gn.gn_id);
-    return indexGn > gnIndexReference;
+    return indexGn >= gnIndexReference;
   }).length;
 }
 
@@ -2381,7 +2381,7 @@ const recettesData = {
   ]
 };
 
-const VERSION_FICHE = "V26.3";
+const VERSION_FICHE = "V26.4";
 
 const selections = new Map();
 const validationsFigees = new Map();
