@@ -1,0 +1,2437 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Mine — Vue Maître de Jeu</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Oswald:wght@300;400;600&display=swap');
+
+:root {
+  --bg:      #011408;
+  --panel:   #141a17;
+  --border:  #186137e7;
+  --text:    #e8b84a;
+  --amber:   #e8b84a;
+  --dim:     #af9964;
+  --mono:    'Share Tech Mono', monospace;
+  --head:    'Oswald', sans-serif;
+
+  --gold:    #e8b84a;
+  --gold2:   #f8d070;
+  --rust:    #c05020;
+  --rust2:   #e87040;
+  --teal:    #30a898;
+  --teal2:   #50d0c0;
+  --steel:   #583a53;
+
+  --map-bg:  #000502;
+
+  /* Room type colors */
+  --c-entrance-bg:   #3f3b33; --c-entrance-bd:  #4a9a4a;
+  --c-corridor-bg:   #3f3b33; --c-corridor-bd:  #a0937a;
+  --c-chamber-bg:    #3f3b33; --c-chamber-bd:   #c87820;
+  --c-shaft-bg:      #3f3b33; --c-shaft-bd:     #3a78c8;
+  --c-reservoir-bg:  #3f3b33; --c-reservoir-bd: #30a0d0;
+  --c-collapsed-bg:  #3f3b33; --c-collapsed-bd: #907030;
+  --c-vein-bg:       #3f3b33; --c-vein-bd:      #80c840;
+  --c-fungal-bg:     #3f3b33; --c-fungal-bd:    #9060c0;
+  --c-forge-bg:      #2a1a0a; --c-forge-bd:     #e06010;
+  --c-deep-bg:       #3f3b33; --c-deep-bd:      #c04030;
+  --c-core-bg:       #3f3b33; --c-core-bd:      #ff3020;
+  --c-unknown-bg:    #3f3b33; --c-unknown-bd:   #2a2620;
+  --c-narrow-bg:     #3f3b33; --c-narrow-bd:    #6060a0;
+
+  --corridor-color:   #5a5040;
+  --shaft-link-color: #3a78c8;
+}
+
+/* ── COORDS OVERLAY ── */
+.room-coords {
+  display: block;
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #ffffff;
+  white-space: nowrap;
+  z-index: 6;
+  pointer-events: none;
+  text-shadow: 0 0 3px #000, 0 0 6px #000, 1px 1px 0 #000, -1px -1px 0 #000;
+  letter-spacing: 1px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--head);
+  min-height: 100vh;
+  padding: 20px;
+}
+
+/* ── HEADER ── */
+header {
+  position: relative; z-index:1;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+}
+header h1 {
+  font-family: var(--head);
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+  letter-spacing: 6px; text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 0 20px rgba(232,184,74,0.3);
+}
+header p { font-size: 0.65rem; color: var(--dim); letter-spacing: 3px; margin-top: 3px; }
+
+.header-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.ctrl-btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text); padding: 7px 14px;
+  font-family: var(--mono); font-size: 0.7rem;
+  letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s;
+}
+.ctrl-btn:hover { border-color: var(--gold); color: var(--gold2); }
+.ctrl-btn.danger:hover { border-color: var(--rust2); color: var(--rust2); }
+
+/* ── STATS BAR ── */
+.stats-bar {
+  position: relative; z-index:1;
+  display: flex; gap: 2px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.stat {
+  background: var(--panel); border: 1px solid var(--border);
+  padding: 10px 16px; flex: 1; min-width: 110px;
+}
+.stat-label { font-size: 0.55rem; letter-spacing: 3px; color: var(--dim); text-transform:uppercase; }
+.stat-value { font-size: 1.3rem; color: var(--gold2); font-family: var(--head); margin-top:2px; }
+.stat-value.danger { color: var(--rust2); }
+.stat-value.amber  { color: var(--gold2); }
+.stat-value.teal   { color: var(--teal2); }
+
+/* ── LEVEL TABS ── */
+.level-tabs {
+  position: relative; z-index:1;
+  display: flex; gap: 2px; margin-bottom: 16px;
+}
+.tab-btn {
+  flex:1; background: var(--panel); border: 1px solid var(--border);
+  color: var(--dim); padding: 10px;
+  font-family: var(--mono); font-size: 0.7rem;
+  letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s;
+}
+.tab-btn.active { background: #22201c; border-color: var(--gold); color: var(--gold2); }
+.tab-btn:hover:not(.active) { border-color: var(--border); color: var(--text); }
+
+/* ── MAP GRID ── */
+.map-wrap {
+  position: relative; z-index:1;
+  overflow-x: auto; margin-bottom: 16px;
+  background: var(--map-bg); border: 1px solid var(--border);
+  padding: 20px;
+}
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(11, 72px);
+  grid-template-rows:    repeat(9, 72px);
+  gap: 0; min-width: 720px; position: relative;
+}
+
+.cell {
+  width:80px; height:80px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.cell.empty { pointer-events:none; }
+
+/* Room node */
+.room-node {
+  width: 48px; height: 48px;
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  border: 2px solid transparent;
+  transition: transform 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+.room-node.unvisited { background: var(--c-unknown-bg); border-color: var(--c-unknown-bd); }
+.room-node.unvisited .room-icon { font-size:0.7rem; opacity:0.2; }
+.room-node.visited { cursor: pointer; }
+.room-node.visited:hover { transform: scale(1.15); z-index:10; box-shadow: 0 0 12px rgba(0,0,0,0.8); }
+
+.room-node.type-entrance  { background:var(--c-entrance-bg);  border-color:var(--c-entrance-bd); }
+.room-node.type-corridor  { background:var(--c-corridor-bg);  border-color:var(--c-corridor-bd); }
+.room-node.type-chamber   { background:var(--c-chamber-bg);   border-color:var(--c-chamber-bd);  }
+.room-node.type-shaft     { background:var(--c-shaft-bg);     border-color:var(--c-shaft-bd);    }
+.room-node.type-reservoir { background:var(--c-reservoir-bg); border-color:var(--c-reservoir-bd);}
+.room-node.type-collapsed { background:var(--c-collapsed-bg); border-color:var(--c-collapsed-bd);}
+.room-node.type-vein      { background:var(--c-vein-bg);      border-color:var(--c-vein-bd);     }
+.room-node.type-fungal    { background:var(--c-fungal-bg);    border-color:var(--c-fungal-bd);   }
+.room-node.type-forge     { background:var(--c-forge-bg);     border-color:var(--c-forge-bd);    }
+.room-node.type-deep      { background:var(--c-deep-bg);      border-color:var(--c-deep-bd);     }
+.room-node.type-core      {
+  background:var(--c-core-bg); border-color:var(--c-core-bd);
+  animation: pulse-core 1.8s ease-in-out infinite;
+}
+.room-node.type-narrow    { background:var(--c-narrow-bg);    border-color:var(--c-narrow-bd);   }
+
+@keyframes pulse-core {
+  0%,100% { box-shadow: 0 0 6px rgba(255,48,32,0.3); }
+  50%      { box-shadow: 0 0 22px rgba(255,48,32,0.8); }
+}
+
+/* Danger overlay on room node */
+.room-node.has-danger { outline: 2px solid var(--rust2); outline-offset: 2px; }
+.room-node.has-danger::before {
+  content: '⚠';
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  font-size: 0.5rem; color: var(--rust2);
+  background: var(--c-core-bg); padding: 0 2px; z-index: 5;
+}
+.room-node.is-cleared { outline: 2px solid var(--teal2); outline-offset: 2px; }
+.room-node.is-depleted { outline: 2px solid #907030; outline-offset: 2px; }
+
+.room-node.type-shaft::after {
+  content: '';
+  position: absolute; inset: -5px;
+  border: 1px dashed var(--c-shaft-bd); opacity: 0.5; pointer-events: none;
+}
+
+.room-icon  { font-size: 1.3rem; line-height:1; }
+.room-label {
+  font-size: 0.36rem; letter-spacing: 0.5px; text-transform:uppercase;
+  color: rgba(212,200,176,0.6); margin-top:2px; text-align:center;
+  max-width:44px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.room-visits {
+  position:absolute; top:-8px; right:-8px;
+  font-size:0.5rem; background: var(--gold); color: #000;
+  padding: 1px 4px; z-index:3; font-weight:bold;
+  min-width:14px; text-align:center; font-family: var(--mono);
+}
+
+/* Extraction badge */
+.room-extract-badge {
+  position:absolute; bottom:-8px; right:-8px;
+  font-size:0.45rem; background: #c87820; color: #000;
+  padding: 1px 3px; z-index:3; font-weight:bold;
+  min-width:12px; text-align:center; font-family: var(--mono);
+}
+
+.room-loot-dots {
+  position: absolute; bottom:-8px; left:50%; transform:translateX(-50%);
+  display:flex; gap:2px; z-index:3;
+}
+.loot-dot { width:6px; height:6px; border-radius:50%; }
+.loot-dot.r { background: #60c840; box-shadow: 0 0 4px rgba(96,200,64,0.6); }
+.loot-dot.d { background: #e04020; box-shadow: 0 0 4px rgba(224,64,32,0.6); }
+
+/* ── SHAFT BADGES ── */
+.shaft-badge {
+  position: absolute; font-size: 0.55rem; font-family: var(--mono);
+  font-weight: bold; color: var(--c-shaft-bd); background: var(--c-shaft-bg);
+  border: 1px solid var(--c-shaft-bd); padding: 0 3px; z-index: 4; line-height: 1.4;
+}
+.shaft-badge.up   { top: -10px; left: 50%; transform: translateX(-50%); }
+.shaft-badge.down { bottom: -10px; left: 50%; transform: translateX(-50%); }
+
+/* ── CORRIDORS ── */
+.corridor-arm { position: absolute; z-index: 1; pointer-events: none; background: var(--corridor-color); }
+.corridor-arm.E { height:4px; width:16px; top:50%; right:0;  transform:translateY(-50%); }
+.corridor-arm.W { height:4px; width:16px; top:50%; left:0;   transform:translateY(-50%); }
+.corridor-arm.N { width:4px; height:16px; left:50%; top:0;    transform:translateX(-50%); }
+.corridor-arm.S { width:4px; height:16px; left:50%; bottom:0; transform:translateX(-50%); }
+.corridor-arm.U, .corridor-arm.D { display: none; }
+.corridor-arm.known   { background: var(--corridor-color); opacity: 1; }
+.corridor-arm.unknown { background: #2e2a24; opacity: 0.4; }
+.corridor-arm.sealed-wall-arm {
+  background: #8040c0 !important;
+  opacity: 0.75;
+  box-shadow: 0 0 4px rgba(128,64,192,0.6);
+}
+
+/* ── DETAIL PANEL ── */
+#detail-panel {
+  position: relative; z-index:1;
+  background: var(--panel); border: 1px solid var(--border);
+  padding: 20px; display:none;
+  animation: slideIn 0.2s ease;
+}
+@keyframes slideIn { from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none} }
+
+.detail-header {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  margin-bottom:16px;
+}
+.detail-room-name {
+  font-family: var(--head); font-size:1.2rem;
+  letter-spacing:3px; text-transform:uppercase; color: var(--gold2);
+}
+.detail-coords { font-size:0.6rem; color:var(--dim); margin-top:3px; }
+.detail-close {
+  background:none; border:none; color:var(--dim);
+  font-size:1.2rem; cursor:pointer; padding:4px;
+}
+.detail-close:hover { color:var(--gold2); }
+
+.detail-sections { display:flex; flex-direction:column; gap:12px; }
+.detail-section { border: 1px solid var(--border); padding:12px; }
+.detail-section-title {
+  font-size:0.58rem; letter-spacing:3px; color:var(--gold); text-transform:uppercase;
+  margin-bottom:8px; display:flex; align-items:center; gap:6px;
+}
+.detail-section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.kv-row { display:flex; justify-content:space-between; font-size:0.7rem; padding:3px 0; border-bottom:1px solid rgba(46,42,36,0.5); }
+.kv-row:last-child { border-bottom:none; }
+.kv-key   { color: var(--dim); }
+.kv-val   { color: var(--text); }
+.kv-val.highlight { color: var(--gold2); }
+.kv-val.danger    { color: var(--rust2); }
+.kv-val.teal      { color: var(--teal2); }
+
+.visit-list { display:flex; flex-direction:column; gap:6px; }
+.visit-entry { border:1px solid var(--border); padding:8px 10px; font-size:0.68rem; }
+.visit-title { color:var(--gold); letter-spacing:2px; font-size:0.58rem; text-transform:uppercase; margin-bottom:4px; }
+.visit-actions { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+.action-chip {
+  font-size:0.62rem; padding:2px 7px; border:1px solid #3a2a0a; color:#c0a060;
+  background: rgba(212,130,10,0.05);
+}
+.action-chip.combat { border-color:#4a1a0a; color:#c07050; background:rgba(139,26,26,0.07); }
+
+/* ── SESSIONS ── */
+.session-card {
+  background: var(--panel); border: 1px solid var(--border);
+  padding: 14px 18px; margin-bottom: 2px;
+  animation: fadeIn 0.3s ease both;
+}
+.session-card.core-reached { border-color: var(--rust2); }
+.session-card.forced-exit  { border-color: #6a3020; }
+
+.session-card-header {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  margin-bottom:10px;
+}
+.session-card-title {
+  font-family:var(--head); font-size:0.95rem;
+  letter-spacing:2px; text-transform:uppercase; color: var(--gold2);
+}
+.session-card-title.core    { color: var(--rust2); }
+.session-card-title.forced  { color: #e07050; }
+.session-card-meta { font-size:0.6rem; color:var(--dim); margin-top:3px; letter-spacing:1px; }
+.session-card-time { font-size:0.65rem; color:var(--dim); text-align:right; }
+
+.session-stat-row {
+  display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;
+}
+.session-stat-chip {
+  font-size:0.65rem; padding:3px 9px; border:1px solid var(--border);
+  color: var(--text);
+}
+.session-stat-chip.ore     { border-color:#2a4a1a; color:#80c840; background:rgba(96,200,64,0.05); }
+.session-stat-chip.danger  { border-color:#4a1a10; color:#e07050; background:rgba(224,64,32,0.05); }
+.session-stat-chip.combat  { border-color:#4a1a1a; color:#c07050; background:rgba(192,64,40,0.05); }
+.session-stat-chip.time    { border-color:#2a2a3a; color:#7080c0; background:rgba(80,96,160,0.05); }
+.session-stat-chip.hp      { border-color:#3a1010; color:#c04040; }
+.session-stat-chip.item    { border-color:#3a2a10; color:#c8a060; background:rgba(200,160,64,0.05); }
+
+.session-path {
+  display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;
+  padding-top:8px; border-top:1px solid var(--border);
+}
+.session-path-step { font-size:0.6rem; color:var(--dim); border:1px solid var(--border); padding:2px 7px; }
+.session-path-step.core-step  { border-color:var(--rust2); color:var(--rust2); }
+.session-path-step.chamber-step { border-color:#c87820; color:#c8a040; }
+.session-path-coords { display:block; text-align:center; font-size:0.55rem; color:var(--teal2); font-weight:bold; letter-spacing:0.5px; margin-top:1px; }
+
+.no-sessions {
+  font-size:0.75rem; color:var(--dim); font-style:italic;
+  padding:16px; text-align:center; border:1px solid var(--border);
+}
+
+/* ── IMPORT/EXPORT ── */
+.ctrl-btn.export-btn { border-color: #2a4a2a; color: #60c840; }
+.ctrl-btn.export-btn:hover { border-color: #60c840; color: #90f060; }
+.ctrl-btn.import-btn { border-color: #2a3a4a; color: #60a0d0; cursor: pointer; }
+.ctrl-btn.import-btn:hover { border-color: #60a0d0; color: #90c8f0; }
+
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--panel); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 24px;
+  font-family: var(--mono); font-size: 0.75rem; letter-spacing: 2px;
+  z-index: 999; opacity: 0; transition: opacity 0.3s;
+  pointer-events: none; white-space: nowrap;
+}
+#toast.show { opacity: 1; }
+#toast.ok   { border-color: #60c840; color: #60c840; }
+#toast.err  { border-color: #e04020; color: #e04020; }
+
+/* ── LEGEND ── */
+.legend {
+  position:relative; z-index:1;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 6px; margin-top: 16px;
+}
+.legend-item {
+  display:flex; align-items:center; gap:8px;
+  font-size:0.65rem; color:var(--text);
+  background: var(--panel); border: 1px solid var(--border);
+  padding: 6px 10px;
+}
+.legend-swatch { width:16px; height:16px; flex-shrink:0; border: 2px solid transparent; }
+
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none} }
+
+/* ── PATH OVERLAY ── */
+#path-selector-bar {
+  position: relative; z-index:1;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px; flex-wrap: wrap;
+}
+#path-selector-bar label {
+  font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--dim); white-space: nowrap;
+}
+#path-session-select {
+  flex: 1; min-width: 200px;
+  background: var(--panel); border: 1px solid var(--border);
+  color: var(--text); padding: 7px 12px;
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 1px;
+  cursor: pointer; outline: none;
+  transition: border-color 0.15s;
+}
+#path-session-select:focus { border-color: var(--gold); }
+#path-session-select option { background: #1a1814; }
+
+.room-path-badge {
+  position: absolute; top: -8px; left: -8px;
+  font-size: 0.48rem; background: #6040a0; color: #fff;
+  padding: 1px 4px; z-index: 6; font-weight: bold;
+  min-width: 14px; text-align: center; font-family: var(--mono);
+  border: 1px solid #8060c0;
+  pointer-events: none;
+}
+
+#path-svg-overlay {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; z-index: 3;
+  overflow: visible;
+}
+
+.map-grid { position: relative; }
+
+.path-dimmed { opacity: 0.25 !important; transition: opacity 0.3s; }
+
+/* ── COLLAPSE BADGE ── */
+.room-collapse-badge {
+  position: absolute; bottom: -8px; left: -8px;
+  font-size: 0.45rem; background: #3a2060; color: #fff;
+  padding: 1px 3px; z-index: 4; font-weight: bold;
+  min-width: 12px; text-align: center; font-family: var(--mono);
+  border: 1px solid #6040a0; letter-spacing: 0.5px;
+  pointer-events: none;
+}
+.room-troglo-badge {
+  position: absolute; bottom: -8px; right: -8px;
+  font-size: 0.45rem; background: #3a1010; color: #e08060;
+  padding: 1px 3px; z-index: 4; font-weight: bold;
+  min-width: 12px; text-align: center; font-family: var(--mono);
+  border: 1px solid #8040a0; letter-spacing: 0.5px;
+  pointer-events: none;
+}
+.room-items-badge {
+  position: absolute; top: -8px; right: -8px;
+  font-size: 0.42rem; background: #102030; color: #60a0c0;
+  padding: 1px 3px; z-index: 4;
+  font-family: var(--mono); border: 1px solid #204060;
+  pointer-events: none; white-space: nowrap;
+}
+
+/* ── BADGE OVERRIDE MJ ── */
+.room-override-badge {
+  position: absolute; top: -7px; right: 12px;
+  font-size: 0.42rem; background: #3a2060; color: #d0b0ff;
+  padding: 0 3px; border: 1px solid #6040a0; z-index: 5;
+  pointer-events: none; font-family: var(--mono);
+}
+
+/* ── BADGE PENDING (diff. session) ── */
+.room-pending-badge {
+  position: absolute; bottom: -8px; right: 12px;
+  font-size: 0.42rem; background: #203a20; color: #80d080;
+  padding: 0 3px; border: 1px solid #40a040; z-index: 5;
+  pointer-events: none; font-family: var(--mono);
+}
+
+/* ── MENU CONTEXTUEL ── */
+#ctx-menu {
+  position: fixed; z-index: 9999;
+  background: #1a1814; border: 1px solid #4a3a7a;
+  padding: 14px 16px; width: 280px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.8);
+  font-family: var(--mono);
+  animation: fadeIn 0.15s ease;
+  display: none;
+  max-height: 90vh; overflow-y: auto;
+}
+#ctx-menu .ctx-title {
+  font-family: var(--head); font-size: 0.8rem;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--gold2); margin-bottom: 2px;
+}
+#ctx-menu .ctx-coords {
+  font-size: 0.56rem; color: var(--dim); margin-bottom: 10px;
+  letter-spacing: 1px;
+}
+.ctx-section {
+  font-size: 0.52rem; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--dim); margin: 10px 0 6px; padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.ctx-section:first-of-type { margin-top: 0; border-top: none; }
+
+#ctx-type-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px;
+  margin-bottom: 4px;
+}
+.ctx-type-btn {
+  background: var(--panel); border: 1px solid var(--border);
+  color: var(--text); padding: 5px 2px;
+  font-family: var(--mono); font-size: 0.55rem;
+  text-align: center; cursor: pointer;
+  transition: all 0.12s; line-height: 1.4;
+}
+.ctx-type-btn:hover  { border-color: var(--gold); color: var(--gold2); }
+.ctx-type-btn.active { border-color: #8060c0; background: rgba(100,60,160,0.25); color: #d0b0ff; }
+.ctx-type-btn.delete-btn {
+  border-color: #4a1a1a; color: #c04040; grid-column: span 2;
+}
+.ctx-type-btn.delete-btn:hover  { border-color: var(--rust2); color: var(--rust2); }
+.ctx-type-btn.delete-btn.active { border-color: var(--rust2); background: rgba(139,26,26,0.25); color: var(--rust2); }
+
+.ctx-pending-notice {
+  font-size: 0.62rem; color: #80d080; background: rgba(64,160,64,0.08);
+  border: 1px solid #40a040; padding: 5px 8px; margin-bottom: 6px;
+}
+
+#ctx-collapse-row label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.7rem; color: var(--text); cursor: pointer;
+  margin-bottom: 6px;
+}
+#ctx-threshold-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  font-size: 0.68rem; color: var(--dim);
+}
+#ctx-threshold-input {
+  width: 52px; background: #111; border: 1px solid #3a3060;
+  color: var(--gold2); padding: 3px 7px;
+  font-family: var(--mono); font-size: 0.78rem; outline: none;
+}
+.ctx-btn-row { display: flex; gap: 6px; margin-top: 10px; }
+.ctx-btn {
+  flex: 1; background: transparent; border: 1px solid var(--border);
+  color: var(--text); padding: 7px;
+  font-family: var(--mono); font-size: 0.65rem;
+  letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s;
+}
+.ctx-btn.save  { border-color: #4a3a7a; color: var(--gold2); }
+.ctx-btn.save:hover  { background: rgba(100,60,160,0.2); }
+.ctx-btn.close:hover { border-color: var(--dim); }
+.cfg-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 5px; font-size: 0.67rem; color: var(--dim);
+}
+.cfg-row label { flex: 1; }
+.cfg-row input[type=number] {
+  width: 64px; text-align: right;
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); padding: 3px 6px;
+  font-family: var(--mono); font-size: 0.72rem;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⛏ La Mine — Vue MJ</h1>
+    <p>Carte complète · Toutes sessions · Temps réel</p>
+  </div>
+  <div class="header-controls">
+    <button class="ctrl-btn" onclick="window.location.href='mine-joueur.html'" style="border-color:rgba(120,200,140,0.5);color:#78c88c;">⬅ Mine Joueur</button>
+    <button class="ctrl-btn" onclick="refreshMap()">↺ Rafraîchir</button>
+    <button class="ctrl-btn export-btn" onclick="exportMap()">⬇ Exporter</button>
+    <label class="ctrl-btn import-btn" title="Importer une sauvegarde JSON">
+      ⬆ Importer
+      <input type="file" id="import-input" accept=".json" onchange="importMap(event)" style="display:none">
+    </label>
+    <button class="ctrl-btn danger" onclick="confirmReset()">⚠ Réinitialiser</button>
+  </div>
+</header>
+
+<div class="stats-bar" id="stats-bar">
+  <div class="stat"><div class="stat-label">Salles découvertes</div><div class="stat-value" id="stat-rooms">0</div></div>
+  <div class="stat"><div class="stat-label">Sessions joueurs</div><div class="stat-value amber" id="stat-sessions">0</div></div>
+  <div class="stat"><div class="stat-label">Minerai total</div><div class="stat-value teal" id="stat-ore">0</div></div>
+  <div class="stat"><div class="stat-label">Combats Troglo.</div><div class="stat-value danger" id="stat-combats">0</div></div>
+  <div class="stat"><div class="stat-label">Salles effondrées</div><div class="stat-value danger" id="stat-collapsed">0</div></div>
+  <div class="stat"><div class="stat-label">Cœur atteint</div><div class="stat-value danger" id="stat-core">NON</div></div>
+  <div class="stat"><div class="stat-label">Runes activées</div><div class="stat-value teal" id="stat-louhi">0/4</div></div>
+</div>
+
+<!-- ── PANNEAU DE CONFIGURATION ── -->
+<div id="config-panel" style="background:var(--panel);border:1px solid var(--border);margin-bottom:12px;position:relative;z-index:1;">
+  <div id="config-toggle" onclick="toggleConfig()" style="
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 16px;cursor:pointer;user-select:none;
+    font-size:0.6rem;letter-spacing:3px;text-transform:uppercase;color:var(--amber);">
+    <span>⚙ Configuration du jeu</span>
+    <span id="config-toggle-icon" style="font-size:0.8rem;color:var(--dim)">▼</span>
+  </div>
+  <div id="config-body" style="display:none;padding:0 16px 16px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:4px;">
+
+      <div style="border:1px solid var(--border);padding:10px 12px;">
+        <div style="font-size:0.55rem;letter-spacing:2px;color:var(--amber);margin-bottom:8px;">⏱ TEMPS (secondes)</div>
+        <div class="cfg-row"><label>Temps base / salle (actions)</label><input type="number" id="cfg-base-room" min="1"></div>
+        <div class="cfg-row"><label>Temps corridor (transit pur)</label><input type="number" id="cfg-corridor-time" min="1"></div>
+        <div class="cfg-row"><label>Temps transit (entrée, étroit)</label><input type="number" id="cfg-transit-time" min="1"></div>
+        <div class="cfg-row"><label>Extraction chambre</label><input type="number" id="cfg-extr-chamber" min="1"></div>
+        <div class="cfg-row"><label>Extraction veine</label><input type="number" id="cfg-extr-vein" min="1"></div>
+        <div class="cfg-row"><label>Cueillette fongique (sec)</label><input type="number" id="cfg-fungal-time" min="10"></div>
+        <div class="cfg-row"><label>Puisage d'eau (sec)</label><input type="number" id="cfg-water-time" min="10"></div>
+        <div class="cfg-row"><label>Durée forge (sec)</label><input type="number" id="cfg-forge-time" min="30"></div>
+        <div class="cfg-row"><label>Forge activée</label><input type="checkbox" id="cfg-forge-enabled" style="width:auto;accent-color:var(--teal2)"></div>
+        <div class="cfg-row"><label>Passage étroit</label><input type="number" id="cfg-narrow" min="1"></div>
+        <div class="cfg-row"><label>Dégager éboulement</label><input type="number" id="cfg-clear" min="1"></div>
+        <div class="cfg-row"><label>Combat Troglodyte</label><input type="number" id="cfg-combat" min="1"></div>
+        <div class="cfg-row"><label>Ascenseur / étage</label><input type="number" id="cfg-elevator" min="1"></div>
+        <div class="cfg-row"><label>Gaz runique (durée)</label><input type="number" id="cfg-gas-dur" min="1"></div>
+      </div>
+
+      <div style="border:1px solid var(--border);padding:10px 12px;">
+        <div style="font-size:0.55rem;letter-spacing:2px;color:var(--amber);margin-bottom:8px;">❤ POINTS DE VIE</div>
+        <div class="cfg-row"><label>PV de départ</label><input type="number" id="cfg-hp-start" min="1" max="20"></div>
+        <div class="cfg-row"><label>Perte — combat faible</label><input type="number" id="cfg-hp-fight" min="1"></div>
+        <div class="cfg-row"><label>Perte — combat lourd</label><input type="number" id="cfg-hp-heavy" min="1"></div>
+        <div class="cfg-row"><label>Perte — vapeurs des profondeurs</label><input type="number" id="cfg-hp-gas" min="1"></div>
+        <div class="cfg-row"><label>Perte — fléchette empoisonnée (Naudhiz)</label><input type="number" id="cfg-hp-dart" min="1"></div>
+        <div class="cfg-row"><label>Perte — pic runique (Jera)</label><input type="number" id="cfg-hp-spike" min="1"></div>
+        <div class="cfg-row"><label>Perte — jet de poison (Isa)</label><input type="number" id="cfg-hp-poison-spray" min="1"></div>
+        <div style="font-size:0.55rem;letter-spacing:2px;color:var(--amber);margin:10px 0 8px;">🎲 PROBABILITÉS</div>
+        <div class="cfg-row"><label>Troglodyte (extr.)</label><input type="number" id="cfg-troglo" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Troglodyte lourd</label><input type="number" id="cfg-troglo-heavy" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Troglo déplacement N0</label><input type="number" id="cfg-roam-n0" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Troglo déplacement N1</label><input type="number" id="cfg-roam-n1" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Troglo déplacement N2</label><input type="number" id="cfg-roam-n2" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Troglo déplacement N3</label><input type="number" id="cfg-roam-n3" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Effondrement aléatoire</label><input type="number" id="cfg-collapse" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Perte évacuation min</label><input type="number" id="cfg-loss-min" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Perte évacuation max</label><input type="number" id="cfg-loss-max" min="0" max="100"> %</div>
+      </div>
+
+      <div style="border:1px solid var(--border);padding:10px 12px;">
+        <div style="font-size:0.55rem;letter-spacing:2px;color:var(--amber);margin-bottom:8px;">🚨 SORTIE FORCÉE</div>
+        <div class="cfg-row"><label>Durée de session (minutes, 0=désactivé)</label><input type="number" id="cfg-session-dur" min="0" max="240"></div>
+        <div class="cfg-row"><label>Salles de grâce</label><input type="number" id="cfg-grace-rooms" min="1" max="10"></div>
+        <div style="font-size:0.55rem;letter-spacing:2px;color:var(--dim);margin:10px 0 8px;">Probabilité événement sortie</div>
+        <div class="cfg-row"><label>Niveau 1</label><input type="number" id="cfg-exit-n1" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Niveau 2</label><input type="number" id="cfg-exit-n2" min="0" max="100"> %</div>
+        <div class="cfg-row"><label>Niveau 3</label><input type="number" id="cfg-exit-n3" min="0" max="100"> %</div>
+        <div style="font-size:0.62rem;color:var(--dim);line-height:1.6;margin-top:10px;padding:8px;border:1px solid var(--border);background:rgba(42,34,24,0.2);">
+          À l'expiration du temps, un événement est tiré selon le niveau du joueur.<br>
+          <span style="color:var(--amber);">N1 :</span> Secousses · Gaz toxique<br>
+          <span style="color:var(--amber);">N2 :</span> Spores · Essaim parasites<br>
+          <span style="color:var(--amber);">N3 :</span> Hallucinations · Claustrophobie<br>
+          <span style="color:var(--dim);margin-top:4px;display:block;">Dans le % restant : la torche s'éteint progressivement (3 salles). Tous niveaux.</span>
+        </div>
+      </div>
+
+    </div>
+      <button class="ctx-btn save" onclick="saveConfig()" style="padding:8px 20px;">✓ Sauvegarder</button>
+      <button class="ctx-btn" onclick="resetConfig()" style="padding:8px 20px;">↺ Valeurs par défaut</button>
+    </div>
+    <div id="config-status" style="font-size:0.65rem;color:var(--dim);margin-top:8px;min-height:16px;"></div>
+  </div>
+</div>
+
+<div id="path-selector-bar">
+  <label>🗺 Chemin joueur :</label>
+  <select id="path-session-select" onchange="onPathSelectChange(this.value)">
+    <option value="">— Aucun filtre —</option>
+  </select>
+</div>
+
+<div class="level-tabs">
+  <button class="tab-btn active" onclick="setLevel(0)">↑ Niveau 0 — Surface</button>
+  <button class="tab-btn" onclick="setLevel(1)">— Niveau 1 — Galeries</button>
+  <button class="tab-btn" onclick="setLevel(2)">↓ Niveau 2 — Profondes</button>
+  <button class="tab-btn" onclick="setLevel(3)">💀 Niveau 3 — L'Antre</button>
+</div>
+
+<div class="map-wrap">
+  <div class="map-grid" id="map-grid"></div>
+  <svg id="path-svg-overlay" style="display:none"></svg>
+</div>
+
+<div id="detail-panel">
+  <div class="detail-header">
+    <div>
+      <div class="detail-room-name" id="detail-name">—</div>
+      <div class="detail-coords" id="detail-coords">—</div>
+    </div>
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-sections" id="detail-sections"></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#1a2e1a;border-color:#4a9a4a"></div>🚪 Entrée</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#1e1c18;border-color:#4a4438"></div>🪨 Corridor</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#2a1e10;border-color:#c87820"></div>⛏️ Galerie d'Extraction</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#101828;border-color:#3a78c8;outline:1px dashed #3a78c8;outline-offset:3px"></div>🕳️ Puits vertical ▲▼</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#101e28;border-color:#30a0d0"></div>💧 Réservoir</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#241c10;border-color:#907030"></div>💥 Éboulement</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#1e281a;border-color:#80c840"></div>✨ Veine de minerai</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#1e1828;border-color:#9060c0"></div>🍄 Chambre fongique</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#281020;border-color:#c040a0"></div>🔥 La Forge</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#1e1010;border-color:#c04030"></div>😱 Profondeurs</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#300808;border-color:#ff3020"></div>💀 Cœur malsain</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#1e1e28;border-color:#6060a0"></div>🪤 Passage étroit</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#141210;border-color:#2a2620"></div>??? Non exploré</div>
+  <div class="legend-item"><span style="color:var(--rust2);font-size:0.8rem">⚠</span>&nbsp; Danger Troglodyte actif</div>
+  <div class="legend-item"><span style="color:var(--teal2);font-size:0.8rem">□</span>&nbsp; Éboulement dégagé</div>
+  <div class="legend-item"><span style="color:#907030;font-size:0.8rem">□</span>&nbsp; Chambre épuisée</div>
+  <div class="legend-item"><span style="color:var(--gold);font-size:0.8rem;font-weight:bold">N</span>&nbsp; Badge = nb visites</div>
+  <div class="legend-item"><span style="color:#c87820;font-size:0.8rem;font-weight:bold">E</span>&nbsp; Badge = nb extractions</div>
+  <div class="legend-item">
+    <span style="display:inline-block;background:#3a2060;color:#fff;font-size:0.6rem;font-weight:bold;padding:1px 4px;border:1px solid #6040a0;font-family:var(--mono)">N/S</span>
+    &nbsp; Éboulement ciblé (passages/seuil)
+  </div>
+  <div class="legend-item">
+    <span style="display:inline-block;background:rgba(80,0,120,0.15);color:#c080f0;font-size:0.8rem;padding:1px 5px;border:1px solid #8040c0;font-family:var(--mono)">🔒</span>
+    &nbsp; Mur scellé (runes &lt; 4) / Ouvert (runes = 4)
+  </div>
+  <div class="legend-item">
+    <span style="display:inline-block;background:#203a20;color:#80d080;font-size:0.6rem;padding:1px 4px;border:1px solid #40a040;font-family:var(--mono)">→🪨</span>
+    &nbsp; Override MJ (actif au prochain GN)
+  </div>
+</div>
+
+<!-- ── SCEAUX DE LOUHI ── -->
+<div id="louhi-panel" style="position:relative;z-index:1;background:var(--panel);border:1px solid rgba(160,80,220,0.3);padding:20px;margin-top:16px;margin-bottom:16px;">
+  <div style="font-family:var(--head);letter-spacing:5px;font-size:0.8rem;text-transform:uppercase;color:#c080f0;margin-bottom:16px;">⬡ Runes ancestrales — Accès Niveau 3</div>
+  <div id="louhi-rune-cards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button class="ctrl-btn" onclick="louhiOpenWell()" style="border-color:rgba(160,80,220,0.5);color:#c080f0;">⬡ Ouvrir le puits</button>
+    <button class="ctrl-btn" onclick="louhiSealWell()" style="border-color:var(--rust);color:var(--rust2);">⛔ Resceller le puits</button>
+    <button class="ctrl-btn" onclick="louhiResetAttempts()" style="border-color:var(--steel);color:var(--text);">↺ Reset tentatives</button>
+  </div>
+  <div id="louhi-status" style="font-size:0.7rem;color:var(--dim);letter-spacing:1px;"></div>
+  <div id="louhi-attempts-list" style="margin-top:10px;font-size:0.68rem;color:var(--dim);"></div>
+</div>
+
+<!-- ── SESSIONS ── -->
+<div id="sessions-panel" style="position:relative;z-index:1;margin-top:16px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div style="font-family:var(--head);font-size:0.7rem;letter-spacing:4px;text-transform:uppercase;color:var(--gold);">
+      ⚔ Résumés des joueurs
+    </div>
+    <button class="ctrl-btn" onclick="renderSessions()" style="font-size:0.6rem;padding:4px 10px;">↺</button>
+  </div>
+  <div id="sessions-list"></div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ── MENU CONTEXTUEL MJ ── -->
+<div id="ctx-menu">
+  <div class="ctx-title" id="ctx-room-name">—</div>
+  <div class="ctx-coords" id="ctx-room-coords">—</div>
+
+  <div id="ctx-pending-notice" class="ctx-pending-notice" style="display:none">
+    ⏳ Modification en attente — active à la prochaine session joueur
+  </div>
+
+  <div class="ctx-section">Type de salle</div>
+  <div id="ctx-type-grid"></div>
+
+  <div class="ctx-section">Éboulement ciblé</div>
+  <div id="ctx-collapse-row">
+    <label>
+      <input type="checkbox" id="ctx-collapse-check" style="accent-color:#8060c0;">
+      Activer l'éboulement ciblé
+    </label>
+    <div id="ctx-threshold-row" style="display:none">
+      <span>Seuil de passages :</span>
+      <input type="number" id="ctx-threshold-input" min="1" max="99" value="5">
+    </div>
+  </div>
+
+  <div class="ctx-section">Troglodytes</div>
+  <div id="ctx-troglo-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" id="ctx-troglo-check" style="accent-color:#8060c0;">
+      Présence de Troglodytes
+    </label>
+    <div id="ctx-troglo-qty-row" style="display:none;align-items:center;gap:6px;">
+      <span style="font-size:0.7rem;color:var(--dim)">Quantité :</span>
+      <input type="number" id="ctx-troglo-qty" min="1" max="20" value="1"
+        style="width:52px;background:var(--panel);border:1px solid var(--border);
+               color:var(--text);padding:4px 6px;font-family:var(--mono);font-size:0.75rem;">
+    </div>
+  </div>
+
+  <div class="ctx-section">Items dans la salle</div>
+  <div id="ctx-items-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+    <!-- généré dynamiquement -->
+  </div>
+
+  <div class="ctx-btn-row">
+    <button class="ctx-btn save" onclick="ctxSave()">✓ Enregistrer</button>
+    <button class="ctx-btn close" onclick="ctxClose()">✕ Fermer</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// MINE DATA — même structure que joueur
+// ══════════════════════════════════════════════
+const MINE_STORAGE_KEY  = 'larp_mine_map_v1';
+const CONFIG_STORAGE_KEY = 'larp_mine_config_v1';
+
+// ══════════════════════════════════════════════
+// CONFIGURATION — valeurs GN modifiables par le MJ
+// ══════════════════════════════════════════════
+const CONFIG_DEFAULTS = {
+  // ── MODE TEST — délais réduits pour partage GitHub avec partenaires ──
+  // Revenir aux valeurs de production avant un vrai GN (voir historique git pour les valeurs d'origine)
+  BASE_ROOM_TIME:              5,
+  CORRIDOR_TIME:               5,
+  TRANSIT_TIME:                5,
+  SESSION_DURATION:           10,   // minutes (0 = désactivé)
+  GRACE_ROOMS:                 3,
+  EXIT_EVENT_CHANCE_N1:     0.80,
+  EXIT_EVENT_CHANCE_N2:     0.80,
+  EXIT_EVENT_CHANCE_N3:     1.00,
+  EXTRACTION_TIME_CHAMBER:     5,
+  EXTRACTION_TIME_VEIN:        5,
+  FUNGAL_TIME:                 5,   // durée de cueillette fongique (secondes)
+  WATER_TIME:                  5,   // durée de puisage d'eau (secondes)
+  FORGE_TIME:                  5,   // durée de forge (secondes)
+  FORGE_ENABLED:               1,   // 0 = désactivée, 1 = activée
+  NARROW_PASSAGE_TIME:         5,
+  COLLAPSE_CLEAR_TIME:         5,
+  COMBAT_TIME:                 5,
+  ELEVATOR_TIME_PER_FLOOR:     5,
+  GAS_DURATION_SEC:            5,
+  STARTING_HP:                 8,
+  HP_LOSS_TROGLODYTE_FIGHT:    2,
+  HP_LOSS_HEAVY_EVENT:         3,
+  GAS_POISON_HP:               2,
+  DART_POISON_HP:               3,
+  SPIKE_HP:                     3,
+  POISON_SPRAY_HP:              4,
+  TROGLODYTE_CHANCE_ON_EXTRACTION: 0.75,
+  TROGLODYTE_HEAVY_GROUP_CHANCE:   0.35,
+  TROGLODYTE_ROAM_CHANCE_N0:       0.05,
+  TROGLODYTE_ROAM_CHANCE_N1:       0.10,
+  TROGLODYTE_ROAM_CHANCE_N2:       0.20,
+  TROGLODYTE_ROAM_CHANCE_N3:       0.35,
+  RANDOM_COLLAPSE_CHANCE:          0.12,
+  EVACUATION_LOSS_MIN:             0.50,
+  EVACUATION_LOSS_MAX:             1.00,
+};
+
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (!raw) return { ...CONFIG_DEFAULTS };
+    return { ...CONFIG_DEFAULTS, ...JSON.parse(raw) };
+  } catch { return { ...CONFIG_DEFAULTS }; }
+}
+
+function saveConfig() {
+  // Lecture helper : ?? au lieu de || pour que 0 soit une valeur valide
+  const n = id => +document.getElementById(id).value;
+  const nf = (id, def) => { const v = n(id); return isNaN(v) ? def : v; };
+  const cfg = {
+    BASE_ROOM_TIME:            nf('cfg-base-room',    CONFIG_DEFAULTS.BASE_ROOM_TIME),
+    CORRIDOR_TIME:             nf('cfg-corridor-time',CONFIG_DEFAULTS.CORRIDOR_TIME),
+    TRANSIT_TIME:              nf('cfg-transit-time', CONFIG_DEFAULTS.TRANSIT_TIME),
+    SESSION_DURATION:          nf('cfg-session-dur',  0),  // 0 = désactivé
+    GRACE_ROOMS:               nf('cfg-grace-rooms',  CONFIG_DEFAULTS.GRACE_ROOMS),
+    EXIT_EVENT_CHANCE_N1:      nf('cfg-exit-n1',  80) / 100,
+    EXIT_EVENT_CHANCE_N2:      nf('cfg-exit-n2',  80) / 100,
+    EXIT_EVENT_CHANCE_N3:      nf('cfg-exit-n3', 100) / 100,
+    EXTRACTION_TIME_CHAMBER:   nf('cfg-extr-chamber', CONFIG_DEFAULTS.EXTRACTION_TIME_CHAMBER),
+    EXTRACTION_TIME_VEIN:      nf('cfg-extr-vein',    CONFIG_DEFAULTS.EXTRACTION_TIME_VEIN),
+    FUNGAL_TIME:               nf('cfg-fungal-time',  CONFIG_DEFAULTS.FUNGAL_TIME),
+    WATER_TIME:                nf('cfg-water-time',   CONFIG_DEFAULTS.WATER_TIME),
+    FORGE_TIME:                nf('cfg-forge-time',   CONFIG_DEFAULTS.FORGE_TIME),
+    FORGE_ENABLED:             document.getElementById('cfg-forge-enabled').checked ? 1 : 0,
+    NARROW_PASSAGE_TIME:       nf('cfg-narrow',        CONFIG_DEFAULTS.NARROW_PASSAGE_TIME),
+    COLLAPSE_CLEAR_TIME:       nf('cfg-clear',         CONFIG_DEFAULTS.COLLAPSE_CLEAR_TIME),
+    COMBAT_TIME:               nf('cfg-combat',        CONFIG_DEFAULTS.COMBAT_TIME),
+    ELEVATOR_TIME_PER_FLOOR:   nf('cfg-elevator',      CONFIG_DEFAULTS.ELEVATOR_TIME_PER_FLOOR),
+    GAS_DURATION_SEC:          nf('cfg-gas-dur',       CONFIG_DEFAULTS.GAS_DURATION_SEC),
+    STARTING_HP:               nf('cfg-hp-start',      CONFIG_DEFAULTS.STARTING_HP),
+    HP_LOSS_TROGLODYTE_FIGHT:  nf('cfg-hp-fight',      CONFIG_DEFAULTS.HP_LOSS_TROGLODYTE_FIGHT),
+    HP_LOSS_HEAVY_EVENT:       nf('cfg-hp-heavy',      CONFIG_DEFAULTS.HP_LOSS_HEAVY_EVENT),
+    GAS_POISON_HP:             nf('cfg-hp-gas',        CONFIG_DEFAULTS.GAS_POISON_HP),
+    DART_POISON_HP:            nf('cfg-hp-dart',       CONFIG_DEFAULTS.DART_POISON_HP),
+    SPIKE_HP:                  nf('cfg-hp-spike',      CONFIG_DEFAULTS.SPIKE_HP),
+    POISON_SPRAY_HP:           nf('cfg-hp-poison-spray', CONFIG_DEFAULTS.POISON_SPRAY_HP),
+    TROGLODYTE_CHANCE_ON_EXTRACTION: nf('cfg-troglo',        75) / 100,
+    TROGLODYTE_HEAVY_GROUP_CHANCE:   nf('cfg-troglo-heavy',  35) / 100,
+    TROGLODYTE_ROAM_CHANCE_N0:       nf('cfg-roam-n0',        5) / 100,
+    TROGLODYTE_ROAM_CHANCE_N1:       nf('cfg-roam-n1',       10) / 100,
+    TROGLODYTE_ROAM_CHANCE_N2:       nf('cfg-roam-n2',       20) / 100,
+    TROGLODYTE_ROAM_CHANCE_N3:       nf('cfg-roam-n3',       35) / 100,
+    RANDOM_COLLAPSE_CHANCE:          nf('cfg-collapse',       12) / 100,
+    EVACUATION_LOSS_MIN:             nf('cfg-loss-min',       50) / 100,
+    EVACUATION_LOSS_MAX:             nf('cfg-loss-max',      100) / 100,
+  };
+  localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(cfg));
+  document.getElementById('config-status').textContent =
+    `✓ Sauvegardé le ${new Date().toLocaleTimeString('fr-FR')} — mine-joueur lira ces valeurs au prochain démarrage`;
+  document.getElementById('config-status').style.color = 'var(--teal2)';
+  showToast('✓ Configuration sauvegardée', 'ok');
+}
+
+function resetConfig() {
+  localStorage.removeItem(CONFIG_STORAGE_KEY);
+  populateConfigPanel(CONFIG_DEFAULTS);
+  document.getElementById('config-status').textContent = '↺ Valeurs par défaut restaurées';
+  document.getElementById('config-status').style.color = 'var(--dim)';
+  showToast('↺ Configuration réinitialisée', 'ok');
+}
+
+function populateConfigPanel(cfg) {
+  document.getElementById('cfg-base-room').value       = cfg.BASE_ROOM_TIME;
+  document.getElementById('cfg-corridor-time').value   = cfg.CORRIDOR_TIME;
+  document.getElementById('cfg-transit-time').value    = cfg.TRANSIT_TIME;
+  document.getElementById('cfg-session-dur').value     = cfg.SESSION_DURATION;
+  document.getElementById('cfg-grace-rooms').value     = cfg.GRACE_ROOMS;
+  document.getElementById('cfg-exit-n1').value         = Math.round(cfg.EXIT_EVENT_CHANCE_N1 * 100);
+  document.getElementById('cfg-exit-n2').value         = Math.round(cfg.EXIT_EVENT_CHANCE_N2 * 100);
+  document.getElementById('cfg-exit-n3').value         = Math.round(cfg.EXIT_EVENT_CHANCE_N3 * 100);
+  document.getElementById('cfg-extr-chamber').value    = cfg.EXTRACTION_TIME_CHAMBER;
+  document.getElementById('cfg-extr-vein').value       = cfg.EXTRACTION_TIME_VEIN;
+  document.getElementById('cfg-fungal-time').value     = cfg.FUNGAL_TIME;
+  document.getElementById('cfg-water-time').value      = cfg.WATER_TIME;
+  document.getElementById('cfg-forge-time').value      = cfg.FORGE_TIME;
+  document.getElementById('cfg-forge-enabled').checked = !!(cfg.FORGE_ENABLED);
+  document.getElementById('cfg-narrow').value        = cfg.NARROW_PASSAGE_TIME;
+  document.getElementById('cfg-clear').value         = cfg.COLLAPSE_CLEAR_TIME;
+  document.getElementById('cfg-combat').value        = cfg.COMBAT_TIME;
+  document.getElementById('cfg-elevator').value      = cfg.ELEVATOR_TIME_PER_FLOOR;
+  document.getElementById('cfg-gas-dur').value       = cfg.GAS_DURATION_SEC;
+  document.getElementById('cfg-hp-start').value      = cfg.STARTING_HP;
+  document.getElementById('cfg-hp-fight').value      = cfg.HP_LOSS_TROGLODYTE_FIGHT;
+  document.getElementById('cfg-hp-heavy').value      = cfg.HP_LOSS_HEAVY_EVENT;
+  document.getElementById('cfg-hp-gas').value        = cfg.GAS_POISON_HP;
+  document.getElementById('cfg-hp-dart').value        = cfg.DART_POISON_HP;
+  document.getElementById('cfg-hp-spike').value       = cfg.SPIKE_HP;
+  document.getElementById('cfg-hp-poison-spray').value = cfg.POISON_SPRAY_HP;
+  document.getElementById('cfg-troglo').value        = Math.round(cfg.TROGLODYTE_CHANCE_ON_EXTRACTION * 100);
+  document.getElementById('cfg-troglo-heavy').value  = Math.round(cfg.TROGLODYTE_HEAVY_GROUP_CHANCE * 100);
+  document.getElementById('cfg-roam-n0').value        = Math.round(cfg.TROGLODYTE_ROAM_CHANCE_N0 * 100);
+  document.getElementById('cfg-roam-n1').value        = Math.round(cfg.TROGLODYTE_ROAM_CHANCE_N1 * 100);
+  document.getElementById('cfg-roam-n2').value        = Math.round(cfg.TROGLODYTE_ROAM_CHANCE_N2 * 100);
+  document.getElementById('cfg-roam-n3').value        = Math.round(cfg.TROGLODYTE_ROAM_CHANCE_N3 * 100);
+  document.getElementById('cfg-collapse').value      = Math.round(cfg.RANDOM_COLLAPSE_CHANCE * 100);
+  document.getElementById('cfg-loss-min').value      = Math.round(cfg.EVACUATION_LOSS_MIN * 100);
+  document.getElementById('cfg-loss-max').value      = Math.round(cfg.EVACUATION_LOSS_MAX * 100);
+}
+
+function toggleConfig() {
+  const body = document.getElementById('config-body');
+  const icon = document.getElementById('config-toggle-icon');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  icon.textContent   = open ? '▲' : '▼';
+  if (open) populateConfigPanel(loadConfig());
+}
+
+// Éboulements ciblés
+const COLLAPSE_THRESHOLD_DEFAULT = 5;
+
+function formatTime(sec) {
+  if (sec < 60) return `${sec} sec`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s > 0 ? `${m} min ${s} sec` : `${m} min`;
+}
+
+const ROOM_TYPES = {
+  entrance:  { icon: '🚪', label: 'Entrée',            danger: 0 },
+  corridor:  { icon: '🪨', label: 'Corridor',            danger: 0 },
+  chamber:   { icon: '⛏️',  label: "Galerie d'Extraction",  danger: 1 },
+  shaft:     { icon: '🕳️', label: 'Puits vertical',     danger: 1 },
+  reservoir: { icon: '💧', label: 'Réservoir',          danger: 1 },
+  collapsed: { icon: '💥', label: 'Éboulement',         danger: 2 },
+  vein:      { icon: '✨', label: 'Veine de minerai',   danger: 0 },
+  fungal:    { icon: '🍄', label: 'Chambre fongique',   danger: 2 },
+  forge:     { icon: '🔥', label: 'La Forge',          danger: 1 },
+  deep:      { icon: '😱', label: 'Profondeurs',        danger: 3 },
+  core:      { icon: '💀', label: 'Cœur malsain',       danger: 4 },
+  narrow:    { icon: '🪤', label: 'Passage étroit',     danger: 0 },
+};
+
+/** Surcharge de nom par salle précise — même table que côté joueur, pour cohérence
+ *  d'affichage dans le chemin de session (bilan MJ). Ne change aucune mécanique. */
+const ROOM_LABELS = {
+  '8,1,0': { label: 'Antichambre du Puits' },
+  '2,2,0': { label: 'Cellier' },
+  '3,2,0': { label: 'Galerie de Travail Abandonnée' },
+  '4,3,0': { label: 'Chambre des Comptes' },
+  '5,3,0': { label: 'Corridor de croisée' },
+  '7,3,0': { label: 'Galerie de la Chaleur Sourde' },
+  '8,3,0': { label: 'Antichambre Scellée' },
+  '5,4,0': { label: 'Vestibule Nord' },
+  '8,4,0': { label: 'Antichambre de la Plateforme' },
+  '2,5,0': { label: 'Corridor de croisée' },
+  '4,5,0': { label: 'Vestibule Ouest' },
+  '6,5,0': { label: 'Vestibule Est' },
+  '7,5,0': { label: 'Antichambre du Bassin' },
+  '5,6,0': { label: 'Vestibule Sud' },
+  '4,7,0': { label: 'Chambre du Message' },
+};
+
+const DIR_ICONS = { N:'↑', S:'↓', E:'→', W:'←', U:'▲', D:'▼' };
+
+// ══════════════════════════════════════════════
+// MINE MAP BUILDER — identique au fichier joueur
+// ══════════════════════════════════════════════
+function buildMine() {
+  const L0 = [
+    [null,  null,   null,   null,   null,   null,   null,   null,   null,  'corridor',  null ],
+    [null,  null,   null,   null,   null,   null,   null,  'chamber','corridor','shaft', null ],
+    [null,  null,  'corridor','corridor',null,null,  null,  'corridor',null,'corridor',  null ],
+    [null,  null,  'chamber','corridor','corridor','corridor','corridor','corridor','corridor',null,null],
+    [null,  null,  'corridor',null,  null,  'corridor',null, 'shaft','corridor',null,  null ],
+    [null,  null,  'corridor','corridor','corridor','entrance','corridor','corridor',null,null,null],
+    [null,  'corridor','corridor',null,null,'corridor',null,'reservoir',null,null,  null ],
+    [null,  'shaft','corridor',null, 'corridor','corridor','corridor',null,null,null,null],
+    [null,  null,  'vein',  null,   null,   null,  'chamber',null,  null,   null,  null ],
+  ];
+  const L1 = [
+    [null,  null,   null,   null,   null,   null,   null,   null,   null,   null,  null ],
+    [null,  null,   null,  'corridor','corridor','corridor',null,null,null, 'corridor',null],
+    [null,  null,   null,  'corridor',null,  'corridor',null,null,  'corridor','chamber',null],
+    [null,  null,  'forge','chamber', null,  'corridor','corridor','corridor','corridor',null,null],
+    [null,  null,  'corridor',null,  null,  'shaft', null,  'shaft',null,   null,  null ],
+    [null,  null,  'corridor','fungal','corridor','corridor','corridor','corridor',null,null,null],
+    [null,  null,  'corridor','corridor',null,null, 'vein', null,   null,   null,  null ],
+    [null,  'corridor','corridor',null,null,  null,  null,   null,   null,   null,  null ],
+    [null,  'chamber',null,  null,   null,   null,   null,   null,   null,   null,  null ],
+  ];
+  const L2 = [
+    [null,  null,   null,   null,   null,   null,   null,   null,   null,   null,  null ],
+    [null,  null,   null,   null,  'corridor',null,  null,   null,   null,   null,  null ],
+    [null,  null,   null,  'corridor','corridor','corridor',null,null,null,  null,  null ],
+    [null,  null,  'corridor','corridor',null,'deep',  null,   null,   null,   null,  null ],
+    [null,  null,  'corridor',null,  null,  'deep', 'corridor','shaft',null,  null,  null ],
+    [null,  null,  'chamber','corridor','corridor','deep',null,null,  null,   null,  null ],
+    [null,  null,   null,  'corridor',null,  'corridor','corridor','corridor',null, null,  null ],
+    [null,  null,   null,   null,  'fungal','corridor',null,'corridor','chamber',null,null],
+    [null,  null,   null,   null,   null,   null,   null,   null,   null,   null,  null ],
+  ];
+  const L3 = [
+    [null,  null,   null,   null,   null,   null,   null,   null,   null,   null,  null ],
+    [null,  null,   null,   null,   null,   null,   null,   null,   null,   null,  null ],
+    [null,  null,   null,   null,   null,   null,   null,   null,   null,   null,  null ],
+    [null,  null,   null,  'deep', 'deep', 'deep',  null,   null,  'corridor',null,null ],
+    [null,  null,   null,  'deep', 'core', 'deep', 'corridor','corridor','corridor',null,null],
+    [null,  null,   null,  'deep', 'deep', 'deep',  null,  'corridor',null,  null,  null ],
+    [null,  null,   null,   null,   null,   null,   null,  'corridor',null,  null,  null ],
+    [null,  null,   null,   null,   null,   null,   null,  'corridor','fungal',null,null],
+    [null,  null,   null,   null,   null,   null,   null,   null,   null,   null,  null ],
+  ];
+
+  const levels = [L0, L1, L2, L3];
+  const ROWS = 9, COLS = 11, LVLS = 4;
+  const SHAFT_DOWN = {
+    '9,1,0': '9,1,1', '1,7,0': '1,7,1',
+    '5,4,1': '5,4,2',
+    '7,4,0': '7,4,1', '7,4,1': '7,4,2', '7,4,2': '7,4,3',
+  };
+  const SHAFT_UP = {};
+  Object.entries(SHAFT_DOWN).forEach(([f,t]) => { SHAFT_UP[t] = f; });
+
+  // Murs scellés — connexion bloquée par défaut, franchissable sous condition de runes
+  const SEALED_WALLS = {
+    '7,3,0:E': true,  // N0 : (7,3,0) → (8,3,0) scellé
+    '8,3,0:W': true,
+    '7,3,0:S': true,  // Couper 7,3,0 → 7,4,0
+    '7,4,0:N': true,  // Isoler ascenseur N0 : pas de sortie N
+    '7,4,0:S': true,  // Isoler ascenseur N0 : pas de sortie S
+    '7,4,1:N': true,  // N1 : (7,4,1) → (7,3,1) scellé
+    '7,3,1:S': true,
+    '7,4,1:S': true,  // Isoler ascenseur N1 : pas de sortie S
+    '7,5,1:N': true,  // Symétrique
+    '7,4,2:W': true,  // N2 : (7,4,2) → (6,4,2) scellé
+    '6,4,2:E': true,
+  };
+
+  const rooms = {};
+  for (let lv = 0; lv < LVLS; lv++) {
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const type = levels[lv][row][col];
+        if (!type) continue;
+        const key   = `${col},${row},${lv}`;
+        const exits = {};
+        if (col > 0       && levels[lv][row][col-1] && !SEALED_WALLS[`${key}:W`]) exits.W = `${col-1},${row},${lv}`;
+        if (col < COLS-1  && levels[lv][row][col+1] && !SEALED_WALLS[`${key}:E`]) exits.E = `${col+1},${row},${lv}`;
+        if (row > 0       && levels[lv][row-1][col] && !SEALED_WALLS[`${key}:N`]) exits.N = `${col},${row-1},${lv}`;
+        if (row < ROWS-1  && levels[lv][row+1][col] && !SEALED_WALLS[`${key}:S`]) exits.S = `${col},${row+1},${lv}`;
+        if (SHAFT_DOWN[key]) exits.D = SHAFT_DOWN[key];
+        if (SHAFT_UP[key])   exits.U = SHAFT_UP[key];
+        rooms[key] = { type, exits, level: lv, col, row };
+      }
+    }
+  }
+
+  // Ajouter les connexions scellées comme exits spéciaux (visibles MJ, bloquées joueur)
+  // Format exits: { ..., 'E_sealed': '8,3,0' } — utilisé pour l'affichage MJ uniquement
+  Object.keys(SEALED_WALLS).forEach(wallKey => {
+    const [coordStr, dir] = wallKey.split(':');
+    if (!rooms[coordStr]) return;
+    const [col, row, lv] = coordStr.split(',').map(Number);
+    const targetKey =
+      dir === 'E' ? `${col+1},${row},${lv}` :
+      dir === 'W' ? `${col-1},${row},${lv}` :
+      dir === 'N' ? `${col},${row-1},${lv}` :
+      dir === 'S' ? `${col},${row+1},${lv}` : null;
+    if (targetKey && rooms[targetKey]) {
+      rooms[coordStr].exits[`${dir}_sealed`] = targetKey;
+    }
+  });
+
+  return rooms;
+}
+const MINE_ROOMS = buildMine();
+
+// Murs scellés (même référence qu'à l'intérieur de buildMine) — exposé pour renderMap
+const SEALED_WALLS_GLOBAL = {
+  '7,3,0:E': true, '8,3,0:W': true,
+  '7,3,0:S': true, '7,4,0:N': true, '7,4,0:S': true,
+  '7,4,1:N': true, '7,3,1:S': true,
+  '7,4,1:S': true, '7,5,1:N': true,
+  '7,4,2:W': true, '6,4,2:E': true,
+};
+
+// ══════════════════════════════════════════════
+// SCEAUX DE LOUHI — Constantes et fonctions MJ
+// ══════════════════════════════════════════════
+const RUNE_DEFS = [
+  { id: 'hagalaz', symbol: 'ᚺ', name: 'Hagalaz', salle: '3,2,0', niveau: 'N0' },
+  { id: 'jera',    symbol: 'ᛃ', name: 'Jera',    salle: '2,5,2', niveau: 'N2' },
+  { id: 'isa',     symbol: 'ᛁ', name: 'Isa',     salle: '5,3,2', niveau: 'N2' },
+  { id: 'naudhiz', symbol: 'ᚾ', name: 'Naudhiz', salle: '3,3,1', niveau: 'N1' },
+];
+
+function getLouhi(data) {
+  if (!data.louhi) {
+    data.louhi = {
+      runesDiscovered: { hagalaz: false, jera: false, isa: false, naudhiz: false },
+      runesGranted:    { hagalaz: false, jera: false, isa: false, naudhiz: false },
+      wellUnlocked: false,
+      attempts: {}
+    };
+  }
+  return data.louhi;
+}
+
+function isRuneActive(louhi, runeId) {
+  return !!(louhi.runesDiscovered[runeId] || louhi.runesGranted[runeId]);
+}
+
+function allRunesActive(louhi) {
+  return RUNE_DEFS.every(r => isRuneActive(louhi, r.id));
+}
+
+function renderLouhiPanel() {
+  const data  = loadMapData();
+  const louhi = getLouhi(data);
+
+  const cardsEl = document.getElementById('louhi-rune-cards');
+  if (cardsEl) {
+    cardsEl.innerHTML = RUNE_DEFS.map(r => {
+      const discovered = louhi.runesDiscovered[r.id];
+      const granted    = louhi.runesGranted[r.id];
+      const active     = discovered || granted;
+      return `<div style="border:1px solid ${active?'rgba(160,80,220,0.7)':'rgba(60,50,40,0.5)'};padding:12px 8px;text-align:center;background:${active?'rgba(80,0,120,0.15)':'rgba(20,18,14,0.5)'};">
+        <div style="font-size:1.8rem;color:${active?'#c080f0':'var(--dim)'}">${r.symbol}</div>
+        <div style="font-size:0.6rem;letter-spacing:2px;color:${active?'#a060d0':'var(--dim)'};text-transform:uppercase;margin:4px 0">${r.name}</div>
+        <div style="font-size:0.55rem;color:var(--dim);margin-bottom:8px">${r.salle} · ${r.niveau}</div>
+        <div style="font-size:0.55rem;color:${discovered?'#70d070':granted?'#d0c050':'var(--dim)'};margin-bottom:6px">
+          ${discovered ? '✓ Découverte joueur' : granted ? '⚑ Accordée MJ' : '— Non trouvée'}
+        </div>
+        <button onclick="louhiToggleRune('${r.id}')"
+          style="font-size:0.55rem;padding:4px 8px;background:transparent;border:1px solid ${active?'rgba(160,80,220,0.5)':'rgba(60,50,40,0.5)'};color:${active?'#c080f0':'var(--dim)'};cursor:pointer;font-family:var(--mono);width:100%;">
+          ${active ? '✕ Révoquer' : '✓ Accorder'}
+        </button>
+      </div>`;
+    }).join('');
+  }
+
+  const statusEl = document.getElementById('louhi-status');
+  if (statusEl) {
+    const activeCount = RUNE_DEFS.filter(r => louhi.runesDiscovered[r.id] || louhi.runesGranted[r.id]).length;
+    statusEl.innerHTML = `Runes actives : <strong style="color:#c080f0">${activeCount}/4</strong> · 
+      Puits : <strong style="color:${louhi.wellUnlocked?'#70d0a0':'var(--rust2)'}">${louhi.wellUnlocked ? '⬡ Ouvert' : '⛔ Scellé'}</strong>`;
+  }
+
+  const attEl = document.getElementById('louhi-attempts-list');
+  if (attEl) {
+    const att = louhi.attempts || {};
+    const entries = Object.entries(att);
+    attEl.innerHTML = entries.length === 0 ? '' :
+      `Tentatives : ` + entries.map(([k,v]) => `<span style="color:${v>=3?'var(--rust2)':'var(--text)'}">${k} (${v}/3)</span>`).join(' · ');
+  }
+}
+
+function louhiToggleRune(runeId) {
+  const data  = loadMapData();
+  const louhi = getLouhi(data);
+  louhi.runesGranted[runeId] = !louhi.runesGranted[runeId];
+  saveMapData(data);
+  renderLouhiPanel();
+  showToast(`Rune ${runeId} : ${louhi.runesGranted[runeId] ? 'accordée' : 'révoquée'}`, 'ok');
+}
+
+function louhiOpenWell() {
+  const data  = loadMapData();
+  const louhi = getLouhi(data);
+  louhi.wellUnlocked = true;
+  saveMapData(data);
+  renderLouhiPanel();
+  showToast('⬡ Puits ouvert — le niveau 3 est accessible', 'ok');
+}
+
+function louhiSealWell() {
+  const data  = loadMapData();
+  const louhi = getLouhi(data);
+  louhi.wellUnlocked = false;
+  saveMapData(data);
+  renderLouhiPanel();
+  showToast('⛔ Puits rescellé', 'ok');
+}
+
+function louhiResetAttempts(playerName) {
+  const data  = loadMapData();
+  const louhi = getLouhi(data);
+  if (playerName) {
+    delete louhi.attempts[playerName];
+    showToast(`Tentatives de ${playerName} réinitialisées`, 'ok');
+  } else {
+    louhi.attempts = {};
+    showToast('Toutes les tentatives réinitialisées', 'ok');
+  }
+  saveMapData(data);
+  renderLouhiPanel();
+}
+
+let currentLevel = 0;
+
+function loadMapData() {
+  try {
+    const raw = localStorage.getItem(MINE_STORAGE_KEY);
+    if (!raw) return freshData();
+    return migrateData(JSON.parse(raw));
+  } catch { return freshData(); }
+}
+
+function freshData() {
+  return { version: 2, visited: {}, roomsState: {}, sessions: [] };
+}
+
+/** Migration défensive depuis format v1 */
+function migrateData(d) {
+  if (!d.version || d.version < 2) {
+    d.version    = 2;
+    d.roomsState = d.roomsState || {};
+    d.visited    = d.visited    || {};
+    d.sessions   = d.sessions   || [];
+  }
+  return d;
+}
+
+function saveMapData(data) {
+  try { localStorage.setItem(MINE_STORAGE_KEY, JSON.stringify(data)); } catch {}
+}
+
+function getRoomState(data, key) {
+  return data.roomsState?.[key] || {
+    extractionCount: 0, totalOreExtracted: 0, depletedLevel: 0,
+    collapsed: false, cleared: false, dangerFlags: [], lastUpdated: 0,
+    collapseThreshold: null, passageCount: 0,
+    isNarrow: false, narrowCleared: false, originalType: null,
+    typeOverride: null,  // override MJ différé (actif à la prochaine session joueur)
+    typeOverridePending: null,  // valeur en attente (null = supprimer, string = nouveau type)
+  };
+}
+
+// ══════════════════════════════════════════════
+// RENDER MAP
+// ══════════════════════════════════════════════
+function renderMap() {
+  const data = loadMapData();
+  const grid = document.getElementById('map-grid');
+  grid.innerHTML = '';
+
+  // Calcul des statistiques globales
+  const allVisited = Object.keys(data.visited);
+  const sessionIds = new Set();
+  let totalOre = 0, totalCombats = 0, collapsedCount = 0;
+  let coreVisited = false;
+
+  // Ore et combats depuis sessions
+  (data.sessions || []).forEach(s => {
+    sessionIds.add(s.sessionId);
+    totalOre     += (s.actions || []).reduce((a, ac) => a + (ac.ore || 0), 0);
+    totalCombats += (s.combats || []).length;
+  });
+
+  // Compat v1 : ore depuis visited
+  allVisited.forEach(key => {
+    const visits = data.visited[key]?.visits || [];
+    visits.forEach(v => sessionIds.add(v.sessionId));
+    if (MINE_ROOMS[key]?.type === 'core') coreVisited = true;
+  });
+
+  // Salles effondrées
+  Object.values(data.roomsState || {}).forEach(rs => {
+    if (rs.collapsed) collapsedCount++;
+  });
+
+  document.getElementById('stat-rooms').textContent    = allVisited.length;
+  document.getElementById('stat-sessions').textContent = sessionIds.size;
+  document.getElementById('stat-ore').textContent      = totalOre;
+  document.getElementById('stat-combats').textContent  = totalCombats;
+  document.getElementById('stat-collapsed').textContent= collapsedCount;
+  const coreEl = document.getElementById('stat-core');
+  coreEl.textContent  = coreVisited ? 'OUI !' : 'NON';
+  coreEl.style.color  = coreVisited ? 'var(--rust2)' : 'var(--dim)';
+
+  // Grille
+  for (let row = 0; row < 9; row++) {
+    for (let col = 0; col < 11; col++) {
+      const key   = `${col},${row},${currentLevel}`;
+      const room  = MINE_ROOMS[key];
+      const cell  = document.createElement('div');
+      cell.className = 'cell';
+
+      if (!room) {
+        cell.classList.add('empty');
+      } else {
+        const visitData = data.visited[key];
+        const roomSt    = getRoomState(data, key);
+        const rt        = ROOM_TYPES[room.type] || ROOM_TYPES.corridor;
+
+        // Corridor arms
+        let armsHtml = '';
+        Object.keys(room.exits).forEach(dir => {
+          if (dir.endsWith('_sealed')) {
+            // Mur scellé — bras spécial visible uniquement côté MJ
+            const baseDir = dir.replace('_sealed', '');
+            armsHtml += `<div class="corridor-arm ${baseDir} sealed-wall-arm" title="Mur scellé"></div>`;
+          } else {
+            const armClass = visitData ? 'known' : 'unknown';
+            armsHtml += `<div class="corridor-arm ${dir} ${armClass}"></div>`;
+          }
+        });
+
+        // Shaft badges
+        let shaftHtml = '';
+        if (room.exits.U) shaftHtml += `<div class="shaft-badge up"${visitData?'':' style="opacity:0.4"'}>▲</div>`;
+        if (room.exits.D) shaftHtml += `<div class="shaft-badge down"${visitData?'':' style="opacity:0.4"'}>▼</div>`;
+
+        if (visitData) {
+          const visitCount = (visitData.visits || []).length;
+
+          // Type affiché : override MJ en attente visible seulement dans le MJ
+          const pendingType = roomSt.typeOverridePending;
+          const displayedType = room.type; // les joueurs voient le type actuel
+          const displayedRt   = rt; // rt déjà calculé sur room.type
+
+          let extractBadge = '';
+          if (roomSt.extractionCount > 0) {
+            extractBadge = `<div class="room-extract-badge">${roomSt.extractionCount}⛏</div>`;
+          }
+
+          let stateClass = '';
+          const hasActiveDanger = (roomSt.dangerFlags || []).length > 0;
+          if (hasActiveDanger)           stateClass = 'has-danger';
+          else if (roomSt.cleared)       stateClass = 'is-cleared';
+          else if (roomSt.depletedLevel > 0) stateClass = 'is-depleted';
+
+          // Badge éboulement ciblé
+          let collapseBadge = '';
+          if (roomSt.collapseThreshold !== null) {
+            const cnt = roomSt.passageCount || 0;
+            collapseBadge = `<div class="room-collapse-badge">${cnt}/${roomSt.collapseThreshold}</div>`;
+          }
+
+          // Badge troglodytes MJ
+          let trogloBadge = '';
+          if (roomSt.troglodytes?.active) {
+            trogloBadge = `<div class="room-troglo-badge">🦎${roomSt.troglodytes.qty}</div>`;
+          }
+
+          // Badge items MJ
+          let itemsBadge = '';
+          if (roomSt.items && Object.keys(roomSt.items).length > 0) {
+            const ITEM_ICONS = { cadavre:'💀', champignon:'🍄', arme:'⚔️', outil:'🔧' };
+            const taken = roomSt.itemsTaken || {};
+            const loot  = roomSt.itemsLoot  || {};
+            const itemStr = Object.entries(roomSt.items)
+              .filter(([,q]) => q > 0)
+              .map(([id,q]) => {
+                const lootEntry = getLootEntry(id, loot[id]);
+                const icon = lootEntry ? lootEntry.icon : (ITEM_ICONS[id]||'?');
+                const style = taken[id] ? 'opacity:0.35;text-decoration:line-through;' : '';
+                return `<span style="${style}" title="${lootEntry ? lootEntry.label : id}">${icon}${q>1?q:''}</span>`;
+              })
+              .join('');
+            itemsBadge = `<div class="room-items-badge">${itemStr}</div>`;
+          }
+
+          // Badge rune ancestrale
+          let runeBadge = '';
+          const runeRoomDef = RUNE_DEFS.find(r => r.salle === key);
+          if (runeRoomDef) {
+            const louhiForBadge = getLouhi(data);
+            const runeActive    = louhiForBadge.runesDiscovered[runeRoomDef.id] || louhiForBadge.runesGranted[runeRoomDef.id];
+            runeBadge = `<div style="position:absolute;top:2px;left:2px;font-size:0.7rem;color:${runeActive?'#70d070':'#c080f0'};opacity:${runeActive?1:0.6};">${runeRoomDef.symbol}</div>`;
+          }
+
+          // Badge override en attente
+          let pendingBadge = '';
+          if (pendingType !== undefined && pendingType !== null) {
+            const pendRt = pendingType === 'deleted' ? {icon:'✕',label:'Vide'} : (ROOM_TYPES[pendingType] || ROOM_TYPES.corridor);
+            pendingBadge = `<div class="room-pending-badge" title="Prochain GN : ${pendRt.label}">→${pendRt.icon}</div>`;
+          } else if (pendingType === null && roomSt.typeOverride !== undefined) {
+            // null explicite = supprimer
+          }
+
+          // Badge mur scellé — salles sources MJ : 7,3,0 / 7,4,1 / 7,4,2
+          const SEALED_SOURCE_DIRS = { '7,3,0': 'Est', '7,4,1': 'Nord', '7,4,2': 'Ouest' };
+          let sealedBadge = '';
+          if (SEALED_SOURCE_DIRS[key]) {
+            const louhiSeal  = getLouhi(data);
+            const runeCount  = RUNE_DEFS.filter(r => louhiSeal.runesDiscovered[r.id] || louhiSeal.runesGranted[r.id]).length;
+            const wallOpen   = runeCount >= 4;
+            const wallBroken = !!roomSt.sealedWallBroken;
+            const label = wallBroken ? '🔨 Démoli' : wallOpen ? '🔓 Mur ouvert' : '🔒 Mur scellé';
+            const bg    = wallBroken ? 'rgba(40,40,40,0.3)'   : wallOpen ? 'rgba(80,160,80,0.15)'  : 'rgba(80,0,120,0.15)';
+            const bd    = wallBroken ? '#605040'               : wallOpen ? '#50a050'                : '#8040c0';
+            const cl    = wallBroken ? '#906050'               : wallOpen ? '#80d080'                : '#c080f0';
+            sealedBadge = `<div style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);
+              font-size:0.42rem;white-space:nowrap;padding:1px 4px;
+              background:${bg};border:1px solid ${bd};color:${cl};z-index:5;font-family:var(--mono)">
+              ${label} ${SEALED_SOURCE_DIRS[key]} (${runeCount}/4)
+            </div>`;
+          }
+
+          // Type visuel effectif : éboulement aléatoire écrase le type d'origine
+          const effectiveType = (roomSt.collapsed && !roomSt.cleared) ? 'collapsed' : room.type;
+          const effectiveRt   = ROOM_TYPES[effectiveType] || rt;
+
+          // Badge troglos dynamiques (dangerFlags posés par le jeu)
+          const dynamicTrogloFlags = (roomSt.dangerFlags || []);
+          if (dynamicTrogloFlags.length > 0 && !trogloBadge) {
+            const heavyCount = dynamicTrogloFlags.filter(f => f.type === 'troglodyte_heavy').length;
+            const weakCount  = dynamicTrogloFlags.filter(f => f.type === 'troglodyte_weak').length;
+            const label = heavyCount > 0 ? `🦎⚠${heavyCount > 1 ? heavyCount : ''}` : `🦎${weakCount > 1 ? weakCount : ''}`;
+            trogloBadge = `<div class="room-troglo-badge" style="background:rgba(120,30,0,0.7);">${label}</div>`;
+          }
+
+          cell.innerHTML = `
+            ${armsHtml}
+            <div class="room-node visited type-${effectiveType} ${stateClass}"
+                 data-key="${key}"
+                 onclick="showDetail('${key}')"
+                 oncontextmenu="ctxOpen(event,'${key}'); return false;">
+              <div class="room-icon">${effectiveRt.icon}</div>
+              <div class="room-label">${effectiveRt.label}</div>
+              <div class="room-visits">${visitCount}</div>
+              ${runeBadge}
+              ${extractBadge}
+              ${collapseBadge}
+              ${trogloBadge}
+              ${itemsBadge}
+              ${pendingBadge}
+              ${shaftHtml}
+              ${sealedBadge}
+              <div class="room-coords">${col},${row},${currentLevel}</div>
+            </div>`;
+        } else {
+          // Badge éboulement ciblé même pour salles non visitées
+          let collapseBadgeUV = '';
+          if (roomSt.collapseThreshold !== null) {
+            const cnt = roomSt.passageCount || 0;
+            collapseBadgeUV = `<div class="room-collapse-badge">${cnt}/${roomSt.collapseThreshold}</div>`;
+          }
+          // Badge troglodytes (non visité)
+          let trogloBadgeUV = '';
+          if (roomSt.troglodytes?.active) {
+            trogloBadgeUV = `<div class="room-troglo-badge">🦎${roomSt.troglodytes.qty}</div>`;
+          }
+          // DangerFlags dynamiques (non visité)
+          const dynamicFlagsUV = (roomSt.dangerFlags || []);
+          if (dynamicFlagsUV.length > 0 && !trogloBadgeUV) {
+            const heavyUV = dynamicFlagsUV.filter(f => f.type === 'troglodyte_heavy').length;
+            const weakUV  = dynamicFlagsUV.filter(f => f.type === 'troglodyte_weak').length;
+            const labelUV = heavyUV > 0 ? `🦎⚠${heavyUV > 1 ? heavyUV : ''}` : `🦎${weakUV > 1 ? weakUV : ''}`;
+            trogloBadgeUV = `<div class="room-troglo-badge" style="background:rgba(120,30,0,0.7);">${labelUV}</div>`;
+          }
+          // Type visuel effectif pour salles non visitées
+          const effectiveTypeUV = (roomSt.collapsed && !roomSt.cleared) ? 'collapsed' : room.type;
+          const effectiveRtUV   = ROOM_TYPES[effectiveTypeUV] || rt;
+          // Badge items (non visité)
+          let itemsBadgeUV = '';
+          if (roomSt.items && Object.keys(roomSt.items).length > 0) {
+            const ITEM_ICONS = { cadavre:'💀', champignon:'🍄', arme:'⚔️', outil:'🔧' };
+            const taken = roomSt.itemsTaken || {};
+            const loot  = roomSt.itemsLoot  || {};
+            const itemStr = Object.entries(roomSt.items)
+              .filter(([,q]) => q > 0)
+              .map(([id,q]) => {
+                const lootEntry = getLootEntry(id, loot[id]);
+                const icon = lootEntry ? lootEntry.icon : (ITEM_ICONS[id]||'?');
+                const style = taken[id] ? 'opacity:0.35;text-decoration:line-through;' : '';
+                return `<span style="${style}" title="${lootEntry ? lootEntry.label : id}">${icon}${q>1?q:''}</span>`;
+              })
+              .join('');
+            itemsBadgeUV = `<div class="room-items-badge">${itemStr}</div>`;
+          }
+          let pendingBadgeUV = '';
+          const pendingTypeUV = roomSt.typeOverridePending;
+          if (pendingTypeUV !== undefined && pendingTypeUV !== null) {
+            const pendRt = pendingTypeUV === 'deleted' ? {icon:'✕'} : (ROOM_TYPES[pendingTypeUV] || ROOM_TYPES.corridor);
+            pendingBadgeUV = `<div class="room-pending-badge" title="Prochain GN">→${pendRt.icon}</div>`;
+          }
+          let runeBadgeUV = '';
+          const runeRoomDefUV = RUNE_DEFS.find(r => r.salle === key);
+          if (runeRoomDefUV) {
+            runeBadgeUV = `<div style="position:absolute;top:2px;left:2px;font-size:0.7rem;color:#c080f0;opacity:0.4;">${runeRoomDefUV.symbol}</div>`;
+          }
+          const SEALED_SOURCE_DIRS_UV = { '7,3,0': 'Est', '7,4,1': 'Nord', '7,4,2': 'Ouest' };
+          let sealedBadgeUV = '';
+          if (SEALED_SOURCE_DIRS_UV[key]) {
+            const louhiSealUV = getLouhi(data);
+            const runeCountUV = RUNE_DEFS.filter(r => louhiSealUV.runesDiscovered[r.id] || louhiSealUV.runesGranted[r.id]).length;
+            const wallOpenUV  = runeCountUV >= 4;
+            sealedBadgeUV = `<div style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);
+              font-size:0.42rem;white-space:nowrap;padding:1px 4px;
+              background:${wallOpenUV?'rgba(80,160,80,0.15)':'rgba(80,0,120,0.15)'};
+              border:1px solid ${wallOpenUV?'#50a050':'#8040c0'};
+              color:${wallOpenUV?'#80d080':'#c080f0'};z-index:5;font-family:var(--mono)">
+              ${wallOpenUV?'🔓 Mur ouvert':'🔒 Mur scellé'} ${SEALED_SOURCE_DIRS_UV[key]} (${runeCountUV}/4)
+            </div>`;
+          }
+          cell.innerHTML = `
+            ${armsHtml}
+            <div class="room-node unvisited type-${effectiveTypeUV}" data-key="${key}"
+                 oncontextmenu="ctxOpen(event,'${key}'); return false;">
+              <div class="room-icon">${effectiveRtUV.icon}</div>
+              <div style="font-size:0.38rem;color:#2a2620;letter-spacing:1px">???</div>
+              ${runeBadgeUV}
+              ${collapseBadgeUV}
+              ${trogloBadgeUV}
+              ${itemsBadgeUV}
+              ${pendingBadgeUV}
+              ${shaftHtml}
+              ${sealedBadgeUV}
+              <div class="room-coords">${col},${row},${currentLevel}</div>
+            </div>`;
+        }
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  // Mise à jour du sélecteur de chemin
+  populatePathSelector(data);
+
+  // Runes ancestrales — panel + stat
+  renderLouhiPanel();
+  const louhiCheck = getLouhi(loadMapData());
+  const louhiCount = RUNE_DEFS.filter(r => louhiCheck.runesDiscovered[r.id] || louhiCheck.runesGranted[r.id]).length;
+  const louhiEl    = document.getElementById('stat-louhi');
+  if (louhiEl) louhiEl.textContent = `${louhiCount}/4`;
+}
+
+// ══════════════════════════════════════════════
+// DETAIL PANEL
+// ══════════════════════════════════════════════
+function showDetail(key) {
+  const data    = loadMapData();
+  const room    = MINE_ROOMS[key];
+  const rt      = ROOM_TYPES[room.type] || ROOM_TYPES.corridor;
+  const visitData = data.visited[key];
+  const roomSt  = getRoomState(data, key);
+
+  document.getElementById('detail-name').textContent   = `${rt.icon} ${rt.label}`;
+  document.getElementById('detail-coords').textContent = `Coordonnées : ${key} · Niveau ${room.level}`;
+
+  const sections = document.getElementById('detail-sections');
+  let html = '';
+
+  // ── État persistant de la salle ──
+  html += `<div class="detail-section">
+    <div class="detail-section-title">État de la salle</div>`;
+
+  html += `<div class="kv-row"><span class="kv-key">Visites totales</span><span class="kv-val highlight">${(visitData?.visits||[]).length}</span></div>`;
+
+  if (room.type === 'chamber' || room.type === 'vein') {
+    const depletedLabels = ['Normal', 'Partiellement épuisé', 'Très épuisé'];
+    html += `<div class="kv-row"><span class="kv-key">Extractions</span><span class="kv-val highlight">${roomSt.extractionCount}</span></div>`;
+    html += `<div class="kv-row"><span class="kv-key">Minerai total extrait</span><span class="kv-val teal">${roomSt.totalOreExtracted}</span></div>`;
+    if (room.type === 'chamber') {
+      html += `<div class="kv-row"><span class="kv-key">Niveau raréfaction</span><span class="kv-val${roomSt.depletedLevel>0?' danger':''}">${depletedLabels[roomSt.depletedLevel]||'—'}</span></div>`;
+    }
+  }
+
+  if (room.type === 'collapsed' || roomSt.collapsed) {
+    const status = roomSt.cleared ? '✓ Dégagée' : roomSt.collapsed ? '✗ Effondrée (bloquée)' : '— Normal';
+    html += `<div class="kv-row"><span class="kv-key">État éboulement</span><span class="kv-val${roomSt.cleared?' teal':roomSt.collapsed?' danger':''}">${status}</span></div>`;
+  }
+
+  // Override MJ en attente
+  if (roomSt.typeOverridePending !== undefined && roomSt.typeOverridePending !== null) {
+    const pType = roomSt.typeOverridePending;
+    const pLabel = pType === 'deleted' ? '✕ Salle supprimée' : `${ROOM_TYPES[pType]?.icon||'?'} ${ROOM_TYPES[pType]?.label||pType}`;
+    html += `<div class="kv-row"><span class="kv-key">Modification MJ (prochain GN)</span><span class="kv-val highlight">${pLabel}</span></div>`;
+  }
+  // Éboulement ciblé
+  if (roomSt.collapseThreshold !== null) {
+    const cnt = roomSt.passageCount || 0;
+    html += `<div class="kv-row"><span class="kv-key">Éboulement ciblé · seuil</span><span class="kv-val highlight">${roomSt.collapseThreshold} passage(s)</span></div>`;
+    html += `<div class="kv-row"><span class="kv-key">Passages enregistrés</span><span class="kv-val${cnt >= roomSt.collapseThreshold ? ' danger' : ' highlight'}">${cnt}</span></div>`;
+  }
+  if (roomSt.isNarrow)      html += `<div class="kv-row"><span class="kv-key">Passage étroit</span><span class="kv-val teal">Oui — dégagement partiel</span></div>`;
+  if (roomSt.narrowCleared) html += `<div class="kv-row"><span class="kv-key">Passage étroit</span><span class="kv-val teal">Élargi à la pioche</span></div>`;
+
+  // ── Troglodytes placés par le MJ ──
+  if (roomSt.troglodytes?.active) {
+    html += `<div class="kv-row"><span class="kv-key">🦎 Troglodytes (MJ)</span><span class="kv-val danger">${roomSt.troglodytes.qty} présent(s)</span></div>`;
+  }
+
+  // ── Items placés par le MJ ──
+  if (roomSt.items && Object.keys(roomSt.items).length > 0) {
+    const ITEM_LABELS = { cadavre:'💀 Cadavre', champignon:'🍄 Champignon', arme:'⚔️ Arme', outil:'🔧 Outil' };
+    const taken = roomSt.itemsTaken || {};
+    const loot  = roomSt.itemsLoot  || {};
+    const itemStr = Object.entries(roomSt.items)
+      .filter(([, q]) => q > 0)
+      .map(([id, q]) => {
+        const catLabel  = `${q}× ${ITEM_LABELS[id] || id}`;
+        const lootEntry = getLootEntry(id, loot[id]);
+        const lootStr   = lootEntry ? ` <span style="color:var(--gold2)">→ ${lootEntry.icon} ${lootEntry.label}</span>` : '';
+        const takenMark = taken[id]
+          ? `<span style="text-decoration:line-through;color:var(--dim)">${catLabel}${lootStr}</span> <span style="color:var(--dim);font-size:0.65rem">✓ pris</span>`
+          : `${catLabel}${lootStr}`;
+        return takenMark;
+      })
+      .join('<br>');
+    html += `<div class="kv-row" style="align-items:flex-start"><span class="kv-key">Items (MJ)</span><span class="kv-val highlight" style="line-height:1.8">${itemStr}</span></div>`;
+  }
+
+  const activeDangers = (roomSt.dangerFlags || []);
+  if (activeDangers.length > 0) {
+    const dangerDesc = activeDangers.map(f => {
+      const labels = { troglodyte_weak: '⚔ Troglodyte (faible)', troglodyte_heavy: '⚔⚔ Troglodytes (groupe)' };
+      return labels[f.type] || f.type;
+    }).join(', ');
+    html += `<div class="kv-row"><span class="kv-key">Dangers actifs</span><span class="kv-val danger">${dangerDesc}</span></div>`;
+  }
+
+  html += `</div>`;
+
+  // ── Visites et actions par session ──
+  const visits = visitData?.visits || [];
+  if (visits.length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">Historique des visites</div>
+      <div class="visit-list">`;
+
+    visits.forEach((v, i) => {
+      const date = new Date(v.ts).toLocaleTimeString('fr-FR');
+      // Trouve les actions de cette session sur cette salle
+      const sessActions = findActionsForVisit(data, key, v.sessionId);
+      html += `<div class="visit-entry">
+        <div class="visit-title">Visite ${i+1} · <strong style="color:var(--gold2)">${v.playerName || 'Inconnu'}</strong> · ${date} · Session ${v.sessionId.toString().slice(-6)}</div>`;
+
+      if (sessActions.length > 0) {
+        html += `<div class="visit-actions">`;
+        sessActions.forEach(a => {
+          const isCombat = a.actionId && a.actionId.includes('fight');
+          html += `<span class="action-chip${isCombat?' combat':''}">${a.label}</span>`;
+        });
+        html += `</div>`;
+      } else {
+        html += `<div style="color:var(--dim);font-size:0.65rem;margin-top:2px">Passage sans action</div>`;
+      }
+      html += `</div>`;
+    });
+
+    html += `</div></div>`;
+  }
+
+  sections.innerHTML = html;
+  const panel = document.getElementById('detail-panel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/** Cherche dans sessions les actions effectuées sur une salle par une session donnée */
+function findActionsForVisit(data, key, sessionId) {
+  for (const s of (data.sessions || [])) {
+    if (s.sessionId === sessionId) {
+      return (s.actions || []).filter(a => a.key === key);
+    }
+  }
+  return [];
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════
+// LEVEL TABS
+// ══════════════════════════════════════════════
+function setLevel(lv) {
+  currentLevel = lv;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', i === lv);
+  });
+  closeDetail();
+  renderMap();
+  // Réappliquer l'overlay si une session est sélectionnée
+  const sel = document.getElementById('path-session-select');
+  if (sel && sel.value) applyPathOverlay(sel.value);
+}
+
+// ══════════════════════════════════════════════
+// PATH OVERLAY
+// ══════════════════════════════════════════════
+
+function populatePathSelector(data) {
+  const sel = document.getElementById('path-session-select');
+  if (!sel) return;
+  const currentVal = sel.value;
+  const sessions = (data.sessions || []).slice().reverse();
+
+  // Reconstruit les options
+  sel.innerHTML = '<option value="">— Aucun filtre —</option>';
+  sessions.forEach(s => {
+    const date = new Date(s.ts).toLocaleString('fr-FR', {
+      day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'
+    });
+    const name  = s.playerName || `Joueur #${String(s.sessionId).slice(-4)}`;
+    const rooms = (s.path || []).length;
+    const flag  = s.reachedCore ? ' 💀' : s.forcedExit ? ' 🏃' : '';
+    const opt   = document.createElement('option');
+    opt.value       = String(s.sessionId);
+    opt.textContent = `${name}${flag} — ${date} — ${rooms} salle(s)`;
+    sel.appendChild(opt);
+  });
+
+  // Restaure la sélection précédente si elle existe encore
+  if (currentVal && [...sel.options].some(o => o.value === currentVal)) {
+    sel.value = currentVal;
+  }
+}
+
+function onPathSelectChange(sessionId) {
+  clearPathOverlay();
+  if (sessionId) applyPathOverlay(sessionId);
+}
+
+function applyPathOverlay(sessionId) {
+  const data    = loadMapData();
+  const session = (data.sessions || []).find(s => String(s.sessionId) === String(sessionId));
+  if (!session) return;
+
+  const path = session.path || [];
+
+  // Clés visitées dans cette session (sur le niveau courant)
+  const sessionKeys = new Set(
+    path.map(p => p.key).filter(k => {
+      const room = MINE_ROOMS[k];
+      return room && room.level === currentLevel;
+    })
+  );
+
+  // Toutes les room-nodes de la grille
+  document.querySelectorAll('.room-node').forEach(node => {
+    const key = node.dataset.key;
+    if (!key) return;
+    const room = MINE_ROOMS[key];
+    if (!room || room.level !== currentLevel) return;
+
+    if (!sessionKeys.has(key)) {
+      node.classList.add('path-dimmed');
+    }
+  });
+
+  // Badges numérotés — on numérote par ordre d'apparition sur ce niveau
+  let stepNum = 0;
+  path.forEach(p => {
+    const room = MINE_ROOMS[p.key];
+    if (!room || room.level !== currentLevel) return;
+    stepNum++;
+    const node = document.querySelector(`.room-node[data-key="${p.key}"]`);
+    if (!node) return;
+    // Évite les doublons si la salle est visitée plusieurs fois
+    if (!node.querySelector('.room-path-badge')) {
+      const badge = document.createElement('div');
+      badge.className   = 'room-path-badge';
+      badge.textContent = stepNum;
+      node.appendChild(badge);
+    } else {
+      // Met à jour avec le premier numéro (déjà posé)
+    }
+  });
+
+  // Flèches SVG entre salles consécutives sur ce niveau
+  drawPathArrows(path);
+}
+
+function drawPathArrows(path) {
+  const svg = document.getElementById('path-svg-overlay');
+  if (!svg) return;
+  svg.innerHTML = '';
+  svg.style.display = 'block';
+
+  // Définit le marqueur de flèche
+  svg.innerHTML = `<defs>
+    <marker id="arrowhead" markerWidth="6" markerHeight="6"
+            refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill="#a080e0" opacity="0.85"/>
+    </marker>
+  </defs>`;
+
+  // Dimensions d'une cellule dans la grille (72px) + padding map-wrap (20px)
+  const CELL   = 72;
+  const PAD    = 20;   // padding map-wrap
+  const OFFSET = 36;   // centre d'une cellule (72/2)
+
+  // Centre d'une salle dans le SVG (coordonnées relatives au map-wrap)
+  function cellCenter(key) {
+    const room = MINE_ROOMS[key];
+    if (!room) return null;
+    const x = PAD + room.col * CELL + OFFSET;
+    const y = PAD + room.row * CELL + OFFSET;
+    return { x, y };
+  }
+
+  // Filtre les étapes du niveau courant
+  const steps = path.filter(p => {
+    const room = MINE_ROOMS[p.key];
+    return room && room.level === currentLevel;
+  });
+
+  for (let i = 0; i < steps.length - 1; i++) {
+    const from = cellCenter(steps[i].key);
+    const to   = cellCenter(steps[i + 1].key);
+    if (!from || !to) continue;
+
+    // Raccourcit légèrement la ligne pour ne pas couvrir les nodes
+    const dx  = to.x - from.x;
+    const dy  = to.y - from.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) continue;
+    const shrink = 22; // pixels à retirer de chaque côté
+    const ratio  = shrink / len;
+    const x1 = from.x + dx * ratio;
+    const y1 = from.y + dy * ratio;
+    const x2 = to.x   - dx * ratio;
+    const y2 = to.y   - dy * ratio;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    line.setAttribute('stroke', '#a080e0');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-opacity', '0.7');
+    line.setAttribute('marker-end', 'url(#arrowhead)');
+    svg.appendChild(line);
+  }
+}
+
+function clearPathOverlay() {
+  // Retire les classes d'atténuation
+  document.querySelectorAll('.room-node.path-dimmed').forEach(n => {
+    n.classList.remove('path-dimmed');
+  });
+  // Retire les badges de chemin
+  document.querySelectorAll('.room-path-badge').forEach(b => b.remove());
+  // Efface le SVG
+  const svg = document.getElementById('path-svg-overlay');
+  if (svg) { svg.innerHTML = ''; svg.style.display = 'none'; }
+}
+
+// ══════════════════════════════════════════════
+// MENU CONTEXTUEL MJ — Éditeur de carte
+// ══════════════════════════════════════════════
+let _ctxKey = null;
+
+const CTX_TYPES = [
+  { type: 'collapsed', label: 'Éboulement'},
+  { type: 'narrow',    label: 'Passage étroit'},
+];
+
+// ── Items plaçables dans une salle ──
+// Pour ajouter un item : { id, label, icon }
+const CTX_ITEMS = [
+  { id: 'cadavre',    label: 'Cadavre',    icon: '💀' },
+  { id: 'champignon', label: 'Champignon', icon: '🍄' },
+  { id: 'arme',       label: 'Arme',       icon: '⚔️' },
+  { id: 'outil',      label: 'Outil',      icon: '🔧' },
+];
+
+// ── Tables de loot par catégorie d'item ──
+// weight : poids relatif (sera normalisé automatiquement)
+// Pour modifier les % : ajustez les weights
+const LOOT_TABLES = {
+  cadavre: [
+    { id: 'note',       label: 'Note',        icon: '📜', weight: 15 },
+    { id: 'cle',        label: 'Clé',         icon: '🗝️', weight: 15 },
+    { id: 'minerai_1',  label: 'Minerai ×1',  icon: '⛏️', weight: 20 },
+    { id: 'minerai_2',  label: 'Minerai ×2',  icon: '⛏️', weight: 10 },
+    { id: 'coffret',    label: 'Coffret',      icon: '📦', weight: 10 },
+    { id: 'arme',       label: 'Arme',         icon: '⚔️', weight: 10 },
+    { id: 'fiole',      label: 'Fiole',        icon: '🧪', weight: 10 },
+    { id: 'rien',       label: 'Rien',         icon: '—',  weight: 10 },
+  ],
+  champignon: [
+    { id: 'bleu',   label: 'Champignon bleu',   icon: '🔵', weight: 33 },
+    { id: 'rouge',  label: 'Champignon rouge',  icon: '🔴', weight: 33 },
+    { id: 'vert',   label: 'Champignon vert',   icon: '🟢', weight: 34 },
+  ],
+  arme: [
+    { id: 'dague',   label: 'Dague moussée',    icon: '🗡️', weight: 40 },
+    { id: 'pioche',  label: 'Pioche cassée',    icon: '⛏️', weight: 30 },
+    { id: 'marteau', label: 'Marteau',          icon: '🔨', weight: 30 },
+  ],
+  outil: [
+    { id: 'burin',  label: 'Burin tordu',    icon: '🔩', weight: 40 },
+    { id: 'pioche', label: 'Pioche cassée',  icon: '⛏️', weight: 30 },
+    { id: 'chaine', label: 'Bout de chaîne', icon: '⛓️', weight: 30 },
+  ],
+};
+
+/** Tire un sous-item au sort depuis une loot table */
+function rollItemLoot(itemId) {
+  const table = LOOT_TABLES[itemId];
+  if (!table || table.length === 0) return null;
+  const total = table.reduce((s, e) => s + e.weight, 0);
+  let r = Math.random() * total;
+  for (const entry of table) {
+    r -= entry.weight;
+    if (r <= 0) return entry.id;
+  }
+  return table[table.length - 1].id;
+}
+
+/** Retourne l'entrée loot complète depuis un id de sous-item */
+function getLootEntry(itemId, lootId) {
+  if (!lootId) return null;
+  return (LOOT_TABLES[itemId] || []).find(e => e.id === lootId) || null;
+}
+
+function ctxOpen(event, key) {
+  event.preventDefault();
+  _ctxKey = key;
+
+  const data   = loadMapData();
+  const room   = MINE_ROOMS[key];
+  const roomSt = getRoomState(data, key);
+  const rt     = ROOM_TYPES[room.type] || ROOM_TYPES.corridor;
+
+  // Titre
+  document.getElementById('ctx-room-name').textContent   = `${rt.icon} ${rt.label}`;
+  document.getElementById('ctx-room-coords').textContent =
+    `Coord. ${key} · Niv. ${room.level} · Type carte : ${rt.label}`;
+
+  // Notice pending
+  const hasPending = roomSt.typeOverridePending !== undefined && roomSt.typeOverridePending !== null;
+  document.getElementById('ctx-pending-notice').style.display = hasPending ? 'block' : 'none';
+
+  // Grille de types — sélection = type en attente ou type actuel
+  const currentSel = hasPending ? roomSt.typeOverridePending : room.type;
+  const grid = document.getElementById('ctx-type-grid');
+  grid.innerHTML = CTX_TYPES.map(({ type: t }) => {
+    const info = ROOM_TYPES[t] || {};
+    const isActive = t === currentSel;
+    return `<button class="ctx-type-btn${isActive ? ' active' : ''}" data-type="${t}"
+      onclick="ctxSelectType('${t}')" title="${info.label||t}">
+      ${info.icon||'?'}<br><span style="font-size:0.5rem">${(info.label||t).split(' ')[0]}</span>
+    </button>`;
+  }).join('') +
+  `<button class="ctx-type-btn delete-btn${currentSel === 'deleted' ? ' active' : ''}" data-type="deleted"
+    onclick="ctxSelectType('deleted')" title="Supprimer la salle (rendre vide)">
+    ✕<br><span style="font-size:0.5rem">Vide</span>
+  </button>`;
+
+  // Éboulement ciblé
+  const hasThreshold = roomSt.collapseThreshold !== null;
+  document.getElementById('ctx-collapse-check').checked = hasThreshold;
+  document.getElementById('ctx-threshold-input').value  =
+    hasThreshold ? roomSt.collapseThreshold : COLLAPSE_THRESHOLD_DEFAULT;
+  document.getElementById('ctx-threshold-row').style.display = hasThreshold ? 'flex' : 'none';
+
+  // ── Troglodytes ──
+  const troglo    = roomSt.troglodytes || { active: false, qty: 1 };
+  const trologoChk = document.getElementById('ctx-troglo-check');
+  const trologoQtyRow = document.getElementById('ctx-troglo-qty-row');
+  trologoChk.checked = troglo.active;
+  document.getElementById('ctx-troglo-qty').value = troglo.qty || 1;
+  trologoQtyRow.style.display = troglo.active ? 'flex' : 'none';
+
+  // ── Items ──
+  const roomItems = roomSt.items || {};
+  const itemsGrid = document.getElementById('ctx-items-grid');
+  itemsGrid.innerHTML = CTX_ITEMS.map(item => {
+    const qty = roomItems[item.id] || 0;
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;">
+      <span style="font-size:0.9rem;width:20px">${item.icon}</span>
+      <span style="font-size:0.7rem;color:var(--dim);flex:1">${item.label}</span>
+      <input type="number" id="ctx-item-${item.id}" min="0" max="99" value="${qty}"
+        style="width:46px;background:var(--panel);border:1px solid var(--border);
+               color:var(--text);padding:3px 6px;font-family:var(--mono);font-size:0.75rem;text-align:right;">
+    </div>`;
+  }).join('');
+
+  // Position
+  const menu = document.getElementById('ctx-menu');
+  menu.style.display = 'block';
+  const mx = Math.min(event.clientX, window.innerWidth  - 300);
+  const my = Math.min(event.clientY, window.innerHeight - 480);
+  menu.style.left = mx + 'px';
+  menu.style.top  = Math.max(8, my) + 'px';
+}
+
+function ctxSelectType(type) {
+  document.querySelectorAll('.ctx-type-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.type === type);
+  });
+  // Désactiver éboulement ciblé si salle supprimée
+  const collapseRow = document.getElementById('ctx-collapse-row');
+  if (collapseRow) collapseRow.style.opacity = type === 'deleted' ? '0.3' : '1';
+}
+
+function ctxClose() {
+  document.getElementById('ctx-menu').style.display = 'none';
+  _ctxKey = null;
+}
+
+function ctxSave() {
+  if (!_ctxKey) return;
+  const data = loadMapData();
+  if (!data.roomsState[_ctxKey]) {
+    data.roomsState[_ctxKey] = {
+      extractionCount: 0, totalOreExtracted: 0, depletedLevel: 0,
+      collapsed: false, cleared: false, dangerFlags: [], lastUpdated: 0,
+      collapseThreshold: null, passageCount: 0,
+      isNarrow: false, narrowCleared: false, originalType: null,
+      typeOverride: null, typeOverridePending: null,
+    };
+  }
+  const rs   = data.roomsState[_ctxKey];
+  const room = MINE_ROOMS[_ctxKey];
+
+  // ── Type override DIFFÉRÉ ──
+  const activeBtn = document.querySelector('#ctx-type-grid .ctx-type-btn.active');
+  const newType   = activeBtn ? activeBtn.dataset.type : room.type;
+
+  if (newType === room.type && newType !== 'deleted') {
+    // Retour au type de carte → annuler override
+    rs.typeOverridePending = null;
+  } else {
+    // Stocke en "pending" — sera appliqué via applierOverrides() au démarrage du joueur
+    rs.typeOverridePending = newType; // 'deleted' ou un type valide
+  }
+
+  // ── Éboulement ciblé (effet immédiat, indépendant du type) ──
+  const checked = document.getElementById('ctx-collapse-check').checked;
+  if (checked && newType !== 'deleted') {
+    const val = parseInt(document.getElementById('ctx-threshold-input').value, 10);
+    rs.collapseThreshold = isNaN(val) || val < 1 ? COLLAPSE_THRESHOLD_DEFAULT : val;
+    if (rs.passageCount === undefined) rs.passageCount = 0;
+  } else {
+    rs.collapseThreshold = null;
+  }
+
+  // ── Troglodytes ──
+  const trologoActive = document.getElementById('ctx-troglo-check').checked;
+  const trologoQty    = parseInt(document.getElementById('ctx-troglo-qty').value, 10) || 1;
+  rs.troglodytes = { active: trologoActive, qty: trologoActive ? trologoQty : 0 };
+
+  // ── Items ──
+  const items = {};
+  const itemsLoot = rs.itemsLoot || {}; // conserver les loots existants
+  CTX_ITEMS.forEach(item => {
+    const val = parseInt(document.getElementById(`ctx-item-${item.id}`)?.value, 10) || 0;
+    if (val > 0) {
+      items[item.id] = val;
+      // Tirer le loot maintenant si pas encore tiré (ou si qty a changé → re-tirer)
+      const prevQty = (rs.items || {})[item.id] || 0;
+      if (!itemsLoot[item.id] || val !== prevQty) {
+        itemsLoot[item.id] = rollItemLoot(item.id);
+      }
+    } else {
+      // Item supprimé — effacer le loot associé
+      delete itemsLoot[item.id];
+    }
+  });
+  rs.items     = items;
+  rs.itemsLoot = itemsLoot;
+
+  rs.lastUpdated = Date.now();
+  saveMapData(data);
+  ctxClose();
+  renderMap();
+
+  // Toast récapitulatif
+  const pendLabel = newType === 'deleted' ? 'suppression' :
+                    newType === room.type  ? 'reset (type original)' :
+                    ROOM_TYPES[newType]?.label || newType;
+  const trogloLabel = trologoActive ? ` · ${trologoQty} Troglo` : '';
+  const itemsLabel  = Object.entries(items).map(([id,q]) => {
+    const def = CTX_ITEMS.find(i=>i.id===id);
+    return `${q}× ${def?.label||id}`;
+  }).join(', ');
+  showToast(
+    `✓ ${_ctxKey} — ${pendLabel}${checked && newType !== 'deleted' ? ` · éboulement seuil ${rs.collapseThreshold}` : ''}${trogloLabel}${itemsLabel ? ' · '+itemsLabel : ''}`,
+    'ok'
+  );
+}
+
+// Toggle seuil
+document.addEventListener('DOMContentLoaded', () => {
+  const check = document.getElementById('ctx-collapse-check');
+  if (check) check.addEventListener('change', () => {
+    document.getElementById('ctx-threshold-row').style.display =
+      check.checked ? 'flex' : 'none';
+  });
+
+  const trogloChk = document.getElementById('ctx-troglo-check');
+  if (trogloChk) trogloChk.addEventListener('change', () => {
+    document.getElementById('ctx-troglo-qty-row').style.display =
+      trogloChk.checked ? 'flex' : 'none';
+  });
+});
+
+// Fermer en cliquant ailleurs
+document.addEventListener('click', e => {
+  const menu = document.getElementById('ctx-menu');
+  if (menu?.style.display === 'block' && !menu.contains(e.target)) ctxClose();
+});
+
+// ══════════════════════════════════════════════
+// SESSIONS
+// ══════════════════════════════════════════════
+/** Miroir de la table utilisée côté mine-joueur — mêmes clés de type, pour un affichage cohérent
+ *  de tous les événements dangereux dans le bilan et les pastilles de session. */
+const DANGER_EVENT_META = {
+  flee:              { icon: '🏃', label: 'Fuite forcée' },
+  gas_rune:          { icon: '☣',  label: 'Gaz toxique — piège runique' },
+  dart_rune:         { icon: '🎯', label: 'Fléchette empoisonnée — piège runique' },
+  spike_rune:        { icon: '⚔️', label: 'Pic runique — piège runique' },
+  poison_spray_rune: { icon: '☠️', label: 'Jet de poison — piège runique' },
+  collapse:          { icon: '🪨', label: 'Effondrement' },
+  hidden_detected:   { icon: '👁️', label: 'Détecté en camouflage' },
+  retreat:           { icon: '↩️', label: 'Demi-tour face aux Troglodytes' },
+};
+
+function renderSessions() {
+  const data     = loadMapData();
+  const sessions = (data.sessions || []).slice().reverse();
+  const container = document.getElementById('sessions-list');
+
+  if (sessions.length === 0) {
+    container.innerHTML = '<div class="no-sessions">Aucune session terminée pour le moment.</div>';
+    return;
+  }
+
+  container.innerHTML = sessions.map((s, i) => {
+    const date = new Date(s.ts).toLocaleString('fr-FR', {
+      day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'
+    });
+    const isCore   = s.reachedCore;
+    const isForced = s.forcedExit;
+    const totalOre = (s.actions||[]).reduce((a,ac) => a + (ac.ore||0), 0);
+    const itemActions   = (s.actions||[]).filter(a => a.actionId && a.actionId.startsWith('take_item_'));
+    const fungalActions = (s.actions||[]).filter(a => a.actionId === 'harvest_fungal');
+    const waterActions  = (s.actions||[]).filter(a => a.actionId === 'harvest_water');
+    const allLootActions = [...itemActions, ...fungalActions, ...waterActions];
+    const forgeAction = (s.actions||[]).find(a => a.actionId === 'forge_outil' || a.actionId === 'forge_arme');
+    const forgeIsOutil = forgeAction && forgeAction.actionId === 'forge_outil';
+    const hpLost   = s.hpLost || (s.hpStart != null ? s.hpStart - s.hpEnd : 0);
+    const combats  = (s.combats||[]).length;
+    const totalTime = s.timeSpent || 0;
+
+    // Outil du joueur
+    const toolLabels = { pickaxe: '⛏ Pioche', shovel: '🪏 Pelle', none: '— Aucun outil' };
+    const toolChip   = toolLabels[s.tool] || (s.tool ? s.tool : null);
+
+    // Résumé du temps par catégorie
+    const tb = s.timeBreakdown || {};
+
+    const path = s.path || [];
+
+    const pathHtml = path.map(p => {
+      const rt = ROOM_TYPES[p.type] || { icon:'?', label: p.type };
+      const labelOverride = p.key ? ROOM_LABELS[p.key] : null;
+      const isCoreStep    = p.type === 'core';
+      const isChamberStep = p.type === 'chamber';
+      return `<span class="session-path-step${isCoreStep?' core-step':isChamberStep?' chamber-step':''}">${labelOverride?.icon || rt.icon} ${labelOverride?.label || rt.label}${p.key ? `<span class="session-path-coords">${p.key}</span>` : ''}</span>`;
+    }).join('<span style="color:var(--dim);padding:0 2px">›</span>');
+
+    let titleClass = 'session-card-title';
+    let titleText  = s.playerName ? `⛏ ${s.playerName}` : `Joueur ${sessions.length - i}`;
+    let cardClass  = 'session-card';
+
+    if (isCore)   { titleClass += ' core';   titleText = '💀 Cœur atteint !'; cardClass += ' core-reached'; }
+    if (isForced) { titleClass += ' forced'; titleText = `🏃 ${s.playerName || 'Joueur'} — Sortie forcée`; cardClass += ' forced-exit'; }
+
+    // ── Bloc bilan sortie joueur ──
+    const hpEnd        = s.hpEnd != null ? s.hpEnd : (s.hpStart != null ? s.hpStart - hpLost : '?');
+    const hpColor      = hpEnd <= 0 ? '#c0392b' : hpEnd <= 3 ? '#d4820a' : '#4a8c2a';
+    const itemsLost    = (s.evacuationLoss && s.evacuationLoss.lost) ? s.evacuationLoss.lost : [];
+    const itemsKept = allLootActions.map(a => {
+      // Format unifié : "🍄 3× nom" ou "🗡️ nom" — icône toujours en premier
+      return a.label;
+    });
+    const itemsLostLabels = itemsLost.map(l => `${l.icon || '⛏'} ${l.qty} ${l.label}`);
+    const dangerEntries = (s.dangers || []).filter(d => DANGER_EVENT_META[d.type] && d.type !== 'flee');
+    const dangerLines   = dangerEntries.map(d => {
+      const meta = DANGER_EVENT_META[d.type];
+      return `${meta.icon} ${meta.label}${d.dmg ? ' · -' + d.dmg + ' PV' : ''}`;
+    });
+
+    // ── Runes activées par ce joueur ──
+    const louhiData = data.louhi || {};
+    const runesDiscoveredBy = louhiData.runesDiscoveredBy || {};
+    const runesGranted      = louhiData.runesGranted      || {};
+    const playerRunesDef = RUNE_DEFS || [
+      { id: 'hagalaz', symbol: 'ᚺ', name: 'Hagalaz' },
+      { id: 'jera',    symbol: 'ᛃ', name: 'Jera'    },
+      { id: 'isa',     symbol: 'ᛁ', name: 'Isa'     },
+      { id: 'naudhiz', symbol: 'ᚾ', name: 'Naudhiz' },
+    ];
+    const runesActivatedByPlayer = playerRunesDef.filter(r =>
+      runesDiscoveredBy[r.id] === s.playerName
+    );
+    const runesGrantedList = playerRunesDef.filter(r => runesGranted[r.id]);
+    const runeChips = runesActivatedByPlayer.map(r =>
+      `<span style="color:#c080f0;border:1px solid rgba(160,80,220,0.5);padding:1px 6px;margin-right:4px;">${r.symbol} ${r.name}</span>`
+    ).join('');
+
+    const bilanHtml = `<div style="margin-top:6px;padding:8px 10px;border:1px solid rgba(139,90,26,0.3);background:rgba(20,14,6,0.6);font-size:0.68rem;line-height:1.8;">
+      <span style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:var(--amber);">📋 Bilan sortie joueur</span><br>
+      ${toolChip ? `<span style="color:#8ab068;">${toolChip}</span><br>` : ''}
+      <span style="color:${hpColor}">❤ PV restants : ${hpEnd} / ${s.hpStart || '?'}</span><br>
+      ${itemsKept.length > 0
+        ? `<span style="color:#8ab068;">✔ Objets conservés : ${itemsKept.join(' · ')}</span><br>`
+        : `<span style="color:var(--rust2);">Aucun objet conservé.</span><br>`}
+      ${forgeAction ? `<span style="color:#e06010;">🔨 ${forgeIsOutil ? 'Outil forgé' : 'Arme forgée'} à la mine</span><br>` : ''}
+      ${totalOre > 0 ? `<span style="color:#8ab068;">⛏ Minerai conservé : ${totalOre}</span><br>` : ''}
+      ${itemsLostLabels.length > 0 ? `<span style="color:var(--rust2);">✘ Perdu lors de la fuite : ${itemsLostLabels.join(' · ')}</span><br>` : ''}
+      ${dangerLines.length > 0 ? `<span style="color:var(--rust2);">⚠ ${dangerLines.join(' · ')}</span><br>` : ''}
+      ${runesActivatedByPlayer.length > 0
+        ? `<span style="color:#c080f0;">ᚱ Rune${runesActivatedByPlayer.length > 1 ? 's' : ''} découverte${runesActivatedByPlayer.length > 1 ? 's' : ''} : ${runeChips}</span><br>`
+        : ''}
+    </div>`;
+
+    const exitInfoMJ = s.exitConsequenceMJ
+      ? `<div style="font-size:0.68rem;color:#c08050;line-height:1.6;padding:6px 10px;border-left:2px solid #6a3020;background:rgba(60,20,0,0.2);margin-bottom:6px;">
+           <span style="font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;color:var(--amber);">⚙ Info MJ</span><br>${s.exitConsequenceMJ}
+           ${bilanHtml}
+         </div>`
+      : `<div style="font-size:0.68rem;padding:4px 10px;margin-bottom:6px;">${bilanHtml}</div>`;
+
+    return `<div class="${cardClass}">
+      <div class="session-card-header">
+        <div>
+          <div class="${titleClass}">${titleText}</div>
+          <div class="session-card-meta">${s.playerName ? s.playerName + ' · ' : ''}${s.roomsVisited||path.length} salle(s) visitée(s)</div>
+        </div>
+        <div class="session-card-time">${date}</div>
+      </div>
+      ${exitInfoMJ}
+      <div class="session-stat-row">
+        ${toolChip ? `<span class="session-stat-chip" style="border-color:#3a4a3a;color:#8ab068;">${toolChip}</span>` : ''}
+        ${totalTime > 0 ? `<span class="session-stat-chip time">⏱ ${formatTime(totalTime)}</span>` : ''}
+        ${totalOre  > 0 ? `<span class="session-stat-chip ore">⛏️ ${totalOre} minerai${totalOre>1?'s':''}</span>` : ''}
+        ${allLootActions.length > 0 ? `<span class="session-stat-chip item">${allLootActions.map(a => a.label).join(' · ')}</span>` : ''}
+        ${forgeAction ? `<span class="session-stat-chip item" style="border-color:#5a2a00;color:#e06010;background:rgba(224,96,16,0.07);">🔨 ${forgeIsOutil ? 'Outil forgé' : 'Arme forgée'}</span>` : ''}
+        ${combats   > 0 ? `<span class="session-stat-chip combat">⚔️ ${combats} combat${combats>1?'s':''}</span>` : ''}
+        ${hpLost    > 0 ? `<span class="session-stat-chip hp">❤ -${hpLost} PV (${s.hpEnd||'?'} restants)</span>` : ''}
+        ${(s.dangers||[]).filter(d => DANGER_EVENT_META[d.type]).map(d => {
+          const meta = DANGER_EVENT_META[d.type];
+          return `<span class="session-stat-chip danger">${meta.icon} ${meta.label}</span>`;
+        }).join('')}
+        ${tb.extraction > 0 ? `<span class="session-stat-chip time">${formatTime(tb.extraction)} extraction</span>` : ''}
+        ${tb.clearing   > 0 ? `<span class="session-stat-chip time">${formatTime(tb.clearing)} dégagement</span>` : ''}
+      </div>
+      ${path.length > 0 ? `<div class="session-path">${pathHtml}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// CONTRÔLES
+// ══════════════════════════════════════════════
+function refreshMap() {
+  renderMap();
+  renderSessions();
+  // Réappliquer l'overlay si une session est sélectionnée
+  const sel = document.getElementById('path-session-select');
+  if (sel && sel.value) applyPathOverlay(sel.value);
+}
+
+let toastTimer = null;
+function showToast(msg, type = 'ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 3000);
+}
+
+// ── Export ──
+function exportMap() {
+  const data = loadMapData();
+  const gn   = prompt('Numéro du GN ? (ex: GN1, GN2…)', `GN${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}`);
+  if (gn === null) return;
+  const filename = `mine-carte-${(gn.trim()||'export')}.json`;
+  const json     = JSON.stringify({ meta: { exportedAt: new Date().toISOString(), label: gn }, ...data }, null, 2);
+  const blob     = new Blob([json], { type: 'application/json' });
+  const url      = URL.createObjectURL(blob);
+  const a        = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`✓ Exporté : ${filename}`, 'ok');
+}
+
+// ── Import — fusion intelligente visited + roomsState + sessions ──
+function importMap(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed.visited) throw new Error('Format invalide — clé "visited" manquante');
+
+      const roomCount = Object.keys(parsed.visited).length;
+      const confirmed = confirm(
+        `Importer "${file.name}" ?\n\n` +
+        `${roomCount} salle(s) dans cette sauvegarde.\n\n` +
+        `⚠ Ceci va FUSIONNER avec la carte actuelle.\nVisites, états de salle et sessions seront combinés.`
+      );
+      if (!confirmed) { event.target.value = ''; return; }
+
+      const current = loadMapData();
+
+      // Fusion visited
+      const mergedVisited = { ...current.visited };
+      Object.entries(parsed.visited).forEach(([key, roomData]) => {
+        if (!mergedVisited[key]) {
+          mergedVisited[key] = roomData;
+        } else {
+          mergedVisited[key].visits = [
+            ...(mergedVisited[key].visits || []),
+            ...(roomData.visits || []),
+          ];
+        }
+      });
+
+      // Fusion roomsState — priorité à l'état le plus avancé
+      const mergedState = { ...(current.roomsState || {}) };
+      Object.entries(parsed.roomsState || {}).forEach(([key, rs]) => {
+        if (!mergedState[key]) {
+          mergedState[key] = rs;
+        } else {
+          const cur = mergedState[key];
+          mergedState[key] = {
+            extractionCount:      Math.max(cur.extractionCount||0, rs.extractionCount||0),
+            totalOreExtracted:    Math.max(cur.totalOreExtracted||0, rs.totalOreExtracted||0),
+            depletedLevel:        Math.max(cur.depletedLevel||0, rs.depletedLevel||0),
+            collapsed:            cur.collapsed || rs.collapsed,
+            cleared:              cur.cleared   || rs.cleared,
+            dangerFlags:          [...(cur.dangerFlags||[]), ...(rs.dangerFlags||[])],
+            lastUpdated:          Math.max(cur.lastUpdated||0, rs.lastUpdated||0),
+            collapseThreshold:    cur.collapseThreshold ?? rs.collapseThreshold ?? null,
+            passageCount:         Math.max(cur.passageCount||0, rs.passageCount||0),
+            isNarrow:             cur.isNarrow || rs.isNarrow,
+            narrowCleared:        cur.narrowCleared || rs.narrowCleared,
+            originalType:         cur.originalType || rs.originalType || null,
+            typeOverride:         cur.typeOverride ?? rs.typeOverride ?? null,
+            typeOverridePending:  cur.typeOverridePending ?? rs.typeOverridePending ?? null,
+          };
+        }
+      });
+
+      // Fusion sessions — déduplique par sessionId
+      const existingIds  = new Set((current.sessions||[]).map(s => s.sessionId));
+      const newSessions  = (parsed.sessions||[]).filter(s => !existingIds.has(s.sessionId));
+      const mergedSessions = [...(current.sessions||[]), ...newSessions];
+
+      const merged = {
+        version:    2,
+        visited:    mergedVisited,
+        roomsState: mergedState,
+        sessions:   mergedSessions,
+      };
+      saveMapData(merged);
+      renderMap();
+      renderSessions();
+      showToast(`✓ Fusionné : ${roomCount} salle(s) + ${newSessions.length} session(s)`, 'ok');
+    } catch (err) {
+      showToast(`✗ Erreur : ${err.message}`, 'err');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function confirmReset() {
+  if (confirm('⚠ Réinitialiser toute la carte ? Cette action est irréversible.')) {
+    localStorage.removeItem(MINE_STORAGE_KEY);
+    renderMap();
+    renderSessions();
+  }
+}
+
+// Auto-refresh toutes les 10 s
+setInterval(() => { renderMap(); renderSessions(); }, 10000);
+
+// Init
+renderMap();
+renderSessions();
+</script>
+</body>
+</html>
