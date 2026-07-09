@@ -100,6 +100,31 @@ h1 {
 .depth-badge.d1 { border-color: #3a2a0a; color: var(--amber); }
 .depth-badge.d2 { border-color: #5a1a1a; color: var(--danger2); }
 
+/* ── INVENTAIRE ── */
+.inventory-bar {
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.inventory-label {
+  font-size: 0.75rem; flex-shrink: 0; opacity: 0.8;
+}
+.inventory-chips {
+  display: flex; gap: 6px; flex-wrap: wrap; flex: 1;
+}
+.inventory-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: rgba(212,130,10,0.08); border: 1px solid var(--stone);
+  border-radius: 10px; padding: 2px 8px;
+  font-size: 0.7rem; color: var(--text);
+  animation: chip-in 0.25s ease;
+}
+.inventory-chip .ic-qty { color: var(--amber2); font-weight: bold; }
+@keyframes chip-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 /* ── HP BAR ── */
 .hp-bar-wrap {
   padding: 10px 20px 0;
@@ -533,6 +558,12 @@ h1 {
     </div>
   </div>
 
+  <!-- Inventaire -->
+  <div class="inventory-bar" id="inventory-bar" style="display:none">
+    <span class="inventory-label">🎒</span>
+    <div class="inventory-chips" id="inventory-chips"></div>
+  </div>
+
   <!-- HP bar -->
   <div class="hp-bar-wrap" id="hp-bar-wrap">
     <span class="hp-label">❤ PV</span>
@@ -583,25 +614,28 @@ h1 {
 const CONFIG_STORAGE_KEY = 'larp_mine_config_v1';
 
 const CONFIG_DEFAULTS = {
-  BASE_ROOM_TIME:                  180,  // salles avec actions (chamber, vein, forge, reservoir, shaft, fungal, deep, core)
-  CORRIDOR_TIME:                    60,  // corridors — transit pur, sans action
-  TRANSIT_TIME:                     90,  // salles intermédiaires (entrance, narrow)
-  SESSION_DURATION:                 45,  // durée totale de session en MINUTES (0 = désactivé)
-  GRACE_ROOMS:                       3,  // salles de grâce après déclenchement événement sortie
+  // ── MODE TEST — délais réduits pour partage GitHub avec partenaires ──
+  // Revenir aux valeurs de production avant un vrai GN (voir historique git pour les valeurs d'origine)
+  BASE_ROOM_TIME:                    5,  // salles avec actions (chamber, vein, forge, reservoir, shaft, fungal, deep, core)
+  CORRIDOR_TIME:                      5,  // corridors — transit pur, sans action
+  TRANSIT_TIME:                       5,  // salles intermédiaires (entrance, narrow)
+  SESSION_DURATION:                  10,  // durée totale de session en MINUTES (0 = désactivé)
+  GRACE_ROOMS:                        3,  // salles de grâce après déclenchement événement sortie
   EXIT_EVENT_CHANCE_N1:           0.80,  // probabilité événement sortie au niveau 1
   EXIT_EVENT_CHANCE_N2:           0.80,  // probabilité événement sortie au niveau 2
   EXIT_EVENT_CHANCE_N3:           1.00,  // probabilité événement sortie au niveau 3 (toujours)
-  EXTRACTION_TIME_CHAMBER:         180,
-  EXTRACTION_TIME_VEIN:            180,
-  FUNGAL_TIME:                      60,  // durée de cueillette fongique (secondes)
-  WATER_TIME:                       45,  // durée de puisage d'eau (secondes)
-  FORGE_TIME:                      300,  // durée de la forge (secondes)
-  NARROW_PASSAGE_TIME:              45,
-  COLLAPSE_CLEAR_TIME:             180,
-  COMBAT_TIME:                      60,
-  ELEVATOR_TIME_PER_FLOOR:          60,
-  GAS_DURATION_SEC:                 20,
-  STARTING_HP:                       8,
+  EXTRACTION_TIME_CHAMBER:           5,
+  EXTRACTION_TIME_VEIN:              5,
+  FUNGAL_TIME:                        5,  // durée de cueillette fongique (secondes)
+  WATER_TIME:                         5,  // durée de puisage d'eau (secondes)
+  FORGE_TIME:                         5,  // durée de la forge (secondes)
+  FORGE_ENABLED:                      1,  // 0 = désactivée, 1 = activée — manquait ici, ajouté (correctif)
+  NARROW_PASSAGE_TIME:                5,
+  COLLAPSE_CLEAR_TIME:                5,
+  COMBAT_TIME:                        5,
+  ELEVATOR_TIME_PER_FLOOR:            5,
+  GAS_DURATION_SEC:                   5,
+  STARTING_HP:                        8,
   HP_LOSS_TROGLODYTE_FIGHT:          2,
   HP_LOSS_HEAVY_EVENT:               3,
   GAS_POISON_HP:                     2,
@@ -1297,6 +1331,59 @@ function updateTimerUI() {
 // ══════════════════════════════════════════════
 // HP UI
 // ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// INVENTAIRE — affichage live de ce que le joueur possède
+// Agrège directement depuis state.sessionActions (source de vérité unique,
+// déjà mise à jour par applyEvacuationLoss en cas de perte à la fuite).
+// ══════════════════════════════════════════════
+function getCurrentInventory() {
+  const groups = {};
+
+  // Minerai — champ numérique dédié, additionné directement
+  let oreTotal = 0;
+  state.sessionActions.forEach(a => { if (a.ore > 0) oreTotal += a.ore; });
+  if (oreTotal > 0) {
+    groups['ore'] = { icon: '⛏️', qty: oreTotal };
+  }
+
+  // Tout le reste du loot : cadavre (take_item_*), champignons, eau, objets forgés
+  state.sessionActions.forEach(a => {
+    if (a._evacuated || !a.actionId) return;
+    const isLoot = a.actionId.startsWith('take_item_') ||
+                   a.actionId === 'harvest_fungal' ||
+                   a.actionId === 'harvest_water' ||
+                   a.actionId === 'forge_outil' ||
+                   a.actionId === 'forge_arme';
+    if (!isLoot) return;
+
+    const m = a.label.match(/^(\S+)\s+(?:(\d+)×\s*)?(.+)$/);
+    if (!m) return;
+    const [, icon, qtyStr, name] = m;
+    const qty = qtyStr ? parseInt(qtyStr) : 1;
+    const gkey = icon + '|' + name;
+    if (!groups[gkey]) groups[gkey] = { icon, name, qty: 0 };
+    groups[gkey].qty += qty;
+  });
+
+  return Object.values(groups);
+}
+
+function updateInventoryUI() {
+  const bar   = document.getElementById('inventory-bar');
+  const chips = document.getElementById('inventory-chips');
+  if (!bar || !chips) return;
+
+  const items = getCurrentInventory();
+  if (items.length === 0) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  chips.innerHTML = items.map(it =>
+    `<span class="inventory-chip">${it.icon}${it.qty > 1 ? `<span class="ic-qty">×${it.qty}</span>` : ''}</span>`
+  ).join('');
+}
+
 function updateHpUI() {
   const pips  = document.getElementById('hp-pips');
   const count = document.getElementById('hp-count');
@@ -2567,6 +2654,7 @@ function getRoomDuration(roomType, roomSt) {
 // RENDER ROOM
 // ══════════════════════════════════════════════
 function renderRoom(skipTimer = false) {
+  updateInventoryUI();
   const key     = state.currentKey;
   const room    = MINE_ROOMS[key];
   const data    = loadMapData();
