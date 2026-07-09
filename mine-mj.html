@@ -4,16 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>La Mine — Vue Maître de Jeu</title>
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#0a0806">
-<link rel="apple-touch-icon" href="./icons/icon-192.png">
-<script>
-  // Piège anti-retour : empêche le bouton/geste "retour" d'interrompre une session en cours
-  history.pushState(null, '', location.href);
-  window.addEventListener('popstate', function () {
-    history.pushState(null, '', location.href);
-  });
-</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Oswald:wght@300;400;600&display=swap');
 
@@ -823,25 +813,27 @@ const CONFIG_STORAGE_KEY = 'larp_mine_config_v1';
 // CONFIGURATION — valeurs GN modifiables par le MJ
 // ══════════════════════════════════════════════
 const CONFIG_DEFAULTS = {
-  BASE_ROOM_TIME:            180,
-  CORRIDOR_TIME:              60,
-  TRANSIT_TIME:               90,
-  SESSION_DURATION:           45,   // minutes (0 = désactivé)
+  // ── MODE TEST — délais réduits pour partage GitHub avec partenaires ──
+  // Revenir aux valeurs de production avant un vrai GN (voir historique git pour les valeurs d'origine)
+  BASE_ROOM_TIME:              5,
+  CORRIDOR_TIME:               5,
+  TRANSIT_TIME:                5,
+  SESSION_DURATION:           10,   // minutes (0 = désactivé)
   GRACE_ROOMS:                 3,
   EXIT_EVENT_CHANCE_N1:     0.80,
   EXIT_EVENT_CHANCE_N2:     0.80,
   EXIT_EVENT_CHANCE_N3:     1.00,
-  EXTRACTION_TIME_CHAMBER:   180,
-  EXTRACTION_TIME_VEIN:      180,
-  FUNGAL_TIME:                60,   // durée de cueillette fongique (secondes)
-  WATER_TIME:                 45,   // durée de puisage d'eau (secondes)
-  FORGE_TIME:                300,   // durée de forge (secondes)
-  FORGE_ENABLED:               0,   // 0 = désactivée, 1 = activée
-  NARROW_PASSAGE_TIME:        45,
-  COLLAPSE_CLEAR_TIME:       180,
-  COMBAT_TIME:                60,
-  ELEVATOR_TIME_PER_FLOOR:    60,
-  GAS_DURATION_SEC:           20,
+  EXTRACTION_TIME_CHAMBER:     5,
+  EXTRACTION_TIME_VEIN:        5,
+  FUNGAL_TIME:                 5,   // durée de cueillette fongique (secondes)
+  WATER_TIME:                  5,   // durée de puisage d'eau (secondes)
+  FORGE_TIME:                  5,   // durée de forge (secondes)
+  FORGE_ENABLED:               1,   // 0 = désactivée, 1 = activée
+  NARROW_PASSAGE_TIME:         5,
+  COLLAPSE_CLEAR_TIME:         5,
+  COMBAT_TIME:                 5,
+  ELEVATOR_TIME_PER_FLOOR:     5,
+  GAS_DURATION_SEC:            5,
   STARTING_HP:                 8,
   HP_LOSS_TROGLODYTE_FIGHT:    2,
   HP_LOSS_HEAVY_EVENT:         3,
@@ -1682,7 +1674,7 @@ function showDetail(key) {
       // Trouve les actions de cette session sur cette salle
       const sessActions = findActionsForVisit(data, key, v.sessionId);
       html += `<div class="visit-entry">
-        <div class="visit-title">Visite ${i+1} · ${date} · Session ${v.sessionId.toString().slice(-6)}</div>`;
+        <div class="visit-title">Visite ${i+1} · <strong style="color:var(--gold2)">${v.playerName || 'Inconnu'}</strong> · ${date} · Session ${v.sessionId.toString().slice(-6)}</div>`;
 
       if (sessActions.length > 0) {
         html += `<div class="visit-actions">`;
@@ -2440,14 +2432,6 @@ setInterval(() => { renderMap(); renderSessions(); }, 10000);
 // Init
 renderMap();
 renderSessions();
-</script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
-      .catch((err) => console.error('Échec enregistrement Service Worker :', err));
-  });
-}
 </script>
 </body>
 </html>
