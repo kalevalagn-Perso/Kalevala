@@ -4417,21 +4417,31 @@ const Audio = (() => {
     if (started) return;
     started = true;
     const src = 'Sons/Generic Dungeon.mp3';
-    player = new window.Audio(src);
-    player.loop   = true;
-    player.volume = 0;
-    player.play().catch(() => {});
-    // F4 (correctif V28) : capture locale `p` (même pattern que fadeOutAndStop) au lieu
-    // de refermer sur la variable `player` mutable. Si un fondu de sortie (fadeOutAndStop,
-    // ex. redémarrage rapide) met `player` à null pendant que ce fondu d'entrée tourne
-    // encore, l'ancien code plantait sur "Cannot set properties of null (setting 'volume')".
-    const p = player;
-    let step = 0, steps = 40;
-    const timer = setInterval(() => {
-      step++;
-      p.volume = Math.min(1.0, step / steps);
-      if (step >= steps) clearInterval(timer);
-    }, 50);
+    // Correctif : chargement manuel en Blob plutôt que new Audio(src) direct.
+    // Un <audio> natif déclenche des requêtes Range que le fetch réseau-d'abord
+    // du service worker (sw.js) ne sait pas satisfaire correctement en repli cache
+    // (caches.match() renvoie la réponse complète, pas le fragment demandé) —
+    // ce qui provoquait un échec de lecture silencieux (avalé par .catch(()=>{}))
+    // uniquement hors-ligne. Un fetch+blob() classique n'utilise jamais de Range
+    // et suit le même chemin (réseau, sinon cache) qui fonctionne déjà pour tous
+    // les autres fichiers de l'app hors-ligne.
+    fetch(src).then(r => r.blob()).then(blob => {
+      player = new window.Audio(URL.createObjectURL(blob));
+      player.loop   = true;
+      player.volume = 0;
+      player.play().catch(err => console.warn('Audio init échoué:', err));
+      // F4 (correctif V28) : capture locale `p` (même pattern que fadeOutAndStop) au lieu
+      // de refermer sur la variable `player` mutable. Si un fondu de sortie (fadeOutAndStop,
+      // ex. redémarrage rapide) met `player` à null pendant que ce fondu d'entrée tourne
+      // encore, l'ancien code plantait sur "Cannot set properties of null (setting 'volume')".
+      const p = player;
+      let step = 0, steps = 40;
+      const timer = setInterval(() => {
+        step++;
+        p.volume = Math.min(1.0, step / steps);
+        if (step >= steps) clearInterval(timer);
+      }, 50);
+    }).catch(err => console.warn('Chargement audio échoué:', err));
   }
 
   function startAmbience() {}
