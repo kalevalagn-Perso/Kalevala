@@ -1,6 +1,6 @@
 // Incrémenter CACHE_VERSION à CHAQUE déploiement (même mineur).
 // C'est CE numéro — pas le ?v= dans l'URL — qui force la mise à jour.
-const CACHE_VERSION = 'v30';
+const CACHE_VERSION = 'v32';
 const CACHE_NAME = `la-mine-${CACHE_VERSION}`;
 
 const FILES_TO_CACHE = [
