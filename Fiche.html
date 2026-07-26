@@ -1126,6 +1126,26 @@
   </details>
 </section>
 
+<section class="section" id="sec-langues-supplementaires">
+  <h2>Langues supplémentaires</h2>
+  <p class="muted">Débloquées par la compétence « Lire et écrire » : niveau 2 → langue maternelle + 1 ; niveau 3 → 5 langues au total (langue maternelle incluse). Chaque choix doit être justifié par l’historique du personnage et sera approuvé par l’organisation.</p>
+
+  <details id="accordion-langues-supplementaires" class="accordion-group" style="display:none;">
+    <summary>Langues supplémentaires <span id="langue-suppl-compteur" class="muted"></span></summary>
+    <div class="accordion-content">
+      <div id="langue-suppl-formulaire" class="ligne-action" style="flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+        <select id="langue-suppl-select" style="min-width:220px;">
+          <option value="">Choisir une langue…</option>
+        </select>
+        <input type="text" id="langue-suppl-autre" placeholder="Nom de la langue" style="display:none; min-width:220px;">
+        <input type="text" id="langue-suppl-justification" placeholder="Justification (lien avec l’historique du personnage)" style="min-width:320px; flex:1;">
+        <button type="button" id="btn-ajouter-langue-suppl">Ajouter</button>
+      </div>
+      <div id="conteneur-langues-supplementaires"></div>
+    </div>
+  </details>
+</section>
+
 
 <section class="section" id="sec-historique">
   <details id="accordion-historique-personnage" class="accordion-group">
@@ -1241,6 +1261,10 @@
               <div class="condense-block">
                 <h3>Recettes</h3>
                 <div id="condense-recettes"></div>
+              </div>
+              <div class="condense-block">
+                <h3>Langues supplémentaires</h3>
+                <div id="condense-langues"></div>
               </div>
             </div>
             <div>
@@ -2398,11 +2422,14 @@ let etatAccordionHistoriquePersonnage = false;
 let etatAccordionRecettesAlchimie = false;
 let etatAccordionRecettesHerboristerie = false;
 let etatAccordionRecettesPoisons = false;
+let etatAccordionLanguesSupplementaires = false;
 const historiqueAcquisitions = new Map();
 const niveauxValides = new Map();
 const historiqueValide = new Map();
 const recettesValidees = { alchimie: new Map(), herboristerie: new Map(), poisons: new Map() };
 const recettesDemandes = { alchimie: new Map(), herboristerie: new Map(), poisons: new Map() };
+const languesValidees = new Map();
+const languesDemandees = new Map();
 
 const calendrierGN = []; // calendrier GN fourni par l’organisation
 
@@ -2826,6 +2853,296 @@ function renderRecettes() {
   renderRecettesCategorie("alchimie", "accordion-recettes-alchimie", "conteneur-recettes-alchimie");
   renderRecettesCategorie("herboristerie", "accordion-recettes-herboristerie", "conteneur-recettes-herboristerie");
   renderRecettesCategorie("poisons", "accordion-recettes-poisons", "conteneur-recettes-poisons");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LANGUES SUPPLÉMENTAIRES (débloquées par "Lire et écrire" niv. 2/3)
+// ═══════════════════════════════════════════════════════════════════
+
+function normaliserTexteLangue(s) {
+  return (s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getLanguesDisponibles() {
+  return Array.from(new Set(Object.values(peupladesLangues))).sort((a, b) => a.localeCompare(b, "fr"));
+}
+
+function getQuotaLanguesSupplementaires() {
+  // Niveau 2 : langue maternelle + 1. Niveau 3 : 5 langues au total (donc +4).
+  const niveau = getNiveauSelectionne("competence", "lire_ecrire");
+  if (niveau >= 3) return 4;
+  if (niveau >= 2) return 1;
+  return 0;
+}
+
+function getToutesLanguesChoisies() {
+  return [
+    ...languesValidees.values(),
+    ...Array.from(languesDemandees.entries())
+      .filter(([id]) => !languesValidees.has(id))
+      .map(([, valeur]) => valeur)
+  ];
+}
+
+function ajouterLangueSupplementaire() {
+  const select = document.getElementById("langue-suppl-select");
+  const autreInput = document.getElementById("langue-suppl-autre");
+  const justifInput = document.getElementById("langue-suppl-justification");
+  if (!select || !justifInput) return;
+
+  let langue = select.value;
+  let personnalisee = false;
+
+  if (langue === "__autre__") {
+    langue = (autreInput?.value || "").trim();
+    personnalisee = true;
+  }
+
+  const justification = justifInput.value.trim();
+
+  if (!langue) {
+    alert("Choisis une langue dans la liste, ou précise-en une dans « Autre ».");
+    return;
+  }
+  if (!justification) {
+    alert("La justification (lien avec l'historique du personnage) est obligatoire.");
+    return;
+  }
+
+  const quota = getQuotaLanguesSupplementaires();
+  const choisies = getToutesLanguesChoisies();
+  if (choisies.length >= quota) {
+    alert(`Tu as déjà atteint le nombre de langues supplémentaires permises (${quota}) pour ton niveau actuel de Lire et écrire.`);
+    return;
+  }
+
+  const langueParlee = document.getElementById("langue-parlee")?.value || "";
+  const cible = normaliserTexteLangue(langue);
+
+  if (cible === normaliserTexteLangue(langueParlee)) {
+    alert("C'est déjà ta langue maternelle.");
+    return;
+  }
+  if (choisies.some(item => normaliserTexteLangue(item.langue) === cible)) {
+    alert("Cette langue est déjà dans ta liste.");
+    return;
+  }
+
+  const id = `langue_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  languesDemandees.set(id, {
+    id,
+    langue,
+    justification,
+    type_acquisition: "demande",
+    personnalisee
+  });
+
+  select.value = "";
+  if (autreInput) { autreInput.value = ""; autreInput.style.display = "none"; }
+  justifInput.value = "";
+
+  refreshAffichage();
+}
+
+function retirerLangueSupplementaire(id) {
+  if (languesValidees.has(id)) return;
+  languesDemandees.delete(id);
+  refreshAffichage();
+}
+
+function chargerLanguesDepuisJson(liste, destination) {
+  destination.clear();
+  if (!Array.isArray(liste)) return;
+
+  liste.forEach(item => {
+    if (!item?.id || !item?.langue) return;
+    destination.set(item.id, {
+      id: item.id,
+      langue: item.langue,
+      justification: item.justification || "",
+      type_acquisition: item.type_acquisition || "demande",
+      personnalisee: item.personnalisee === true
+    });
+  });
+}
+
+function serialiserLanguesPourJson(source) {
+  return Array.from(source.values())
+    .sort((a, b) => (a.langue || "").localeCompare(b.langue || "", "fr"))
+    .map(item => ({
+      id: item.id,
+      langue: item.langue,
+      justification: item.justification || "",
+      type_acquisition: item.type_acquisition || "demande",
+      personnalisee: item.personnalisee === true
+    }));
+}
+
+function creerBlocLangueNative(langue) {
+  const bloc = document.createElement("div");
+  bloc.className = "skill";
+
+  bloc.innerHTML = `
+    <div class="skill-line">
+      <div class="skill-label" style="width:420px; min-width:420px;">
+        ${escapeHtml(langue)}<br>
+        <span class="muted">Langue maternelle — acquise à la création</span>
+      </div>
+      <div class="skill-levels-inline" style="justify-content:flex-start; width:auto; min-width:0; flex:1;">
+        <div class="level-inline" style="width:100%; min-width:260px;">
+          <div class="level-inline-cost">Débloquée automatiquement par Lire et écrire, niveau 1.</div>
+        </div>
+        <div class="level-inline" style="width:180px; min-width:180px;">
+          <button type="button" disabled style="background:#2e7d32; width:100%;">Acquise</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return bloc;
+}
+
+function creerBlocLangueSupplementaire(langueItem) {
+  const bloc = document.createElement("div");
+  bloc.className = "skill";
+
+  const estAcquise = languesValidees.has(langueItem.id);
+
+  let labelBouton = "Retirer";
+  let disabled = false;
+  let action = () => retirerLangueSupplementaire(langueItem.id);
+  let couleur = "#8b1e1e";
+  let statut = "Demandée";
+
+  if (estAcquise) {
+    labelBouton = "Acquise";
+    disabled = true;
+    couleur = "#2e7d32";
+    action = null;
+    statut = "Acquise";
+  }
+
+  bloc.innerHTML = `
+    <div class="skill-line">
+      <div class="skill-label" style="width:420px; min-width:420px;">
+        ${escapeHtml(langueItem.langue)}${langueItem.personnalisee ? ' <span class="muted">(proposée par le joueur)</span>' : ''}<br>
+        <span class="muted">${escapeHtml(statut)}</span>
+      </div>
+      <div class="skill-levels-inline" style="justify-content:flex-start; width:auto; min-width:0; flex:1;">
+        <div class="level-inline" style="width:100%; min-width:260px;">
+          <div class="level-inline-cost">${escapeHtml(langueItem.justification || "")}</div>
+        </div>
+        <div class="level-inline" style="width:180px; min-width:180px;">
+          <button type="button" ${disabled ? "disabled" : ""} style="background:${couleur}; width:100%;">${labelBouton}</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const bouton = bloc.querySelector("button");
+  if (bouton && action) bouton.addEventListener("click", action);
+
+  return bloc;
+}
+
+function remplirSelectLanguesSupplementaires() {
+  const select = document.getElementById("langue-suppl-select");
+  if (!select) return;
+
+  const valeurActuelle = select.value;
+  const langueParlee = document.getElementById("langue-parlee")?.value || "";
+  const cibleParlee = normaliserTexteLangue(langueParlee);
+  const dejaChoisies = new Set(getToutesLanguesChoisies().map(item => normaliserTexteLangue(item.langue)));
+
+  select.innerHTML = "";
+  const optionVide = document.createElement("option");
+  optionVide.value = "";
+  optionVide.textContent = "Choisir une langue…";
+  select.appendChild(optionVide);
+
+  getLanguesDisponibles().forEach(langue => {
+    const norm = normaliserTexteLangue(langue);
+    if (norm === cibleParlee || dejaChoisies.has(norm)) return;
+    const option = document.createElement("option");
+    option.value = langue;
+    option.textContent = langue;
+    select.appendChild(option);
+  });
+
+  const optionAutre = document.createElement("option");
+  optionAutre.value = "__autre__";
+  optionAutre.textContent = "Autre (préciser)…";
+  select.appendChild(optionAutre);
+
+  if (Array.from(select.options).some(o => o.value === valeurActuelle)) {
+    select.value = valeurActuelle;
+  }
+}
+
+function renderLangues() {
+  const accordion = document.getElementById("accordion-langues-supplementaires");
+  const conteneur = document.getElementById("conteneur-langues-supplementaires");
+  const formulaire = document.getElementById("langue-suppl-formulaire");
+  const compteurEl = document.getElementById("langue-suppl-compteur");
+  if (!accordion || !conteneur) return;
+
+  const quota = getQuotaLanguesSupplementaires();
+  const choisies = getToutesLanguesChoisies();
+  const afficher = quota > 0 || choisies.length > 0;
+
+  accordion.style.display = afficher ? "" : "none";
+  if (!afficher) {
+    conteneur.innerHTML = "";
+    return;
+  }
+
+  if (compteurEl) compteurEl.textContent = `(${choisies.length} / ${quota})`;
+  if (formulaire) formulaire.style.display = choisies.length < quota ? "" : "none";
+
+  remplirSelectLanguesSupplementaires();
+
+  conteneur.innerHTML = "";
+
+  const langueParleeActuelle = document.getElementById("langue-parlee")?.value || "";
+  if (langueParleeActuelle) {
+    conteneur.appendChild(creerBlocLangueNative(langueParleeActuelle));
+  }
+
+  choisies
+    .sort((a, b) => (a.langue || "").localeCompare(b.langue || "", "fr"))
+    .forEach(item => conteneur.appendChild(creerBlocLangueSupplementaire(item)));
+
+  accordion.open = etatAccordionLanguesSupplementaires;
+}
+
+function renderLanguesCondensees(cibleId) {
+  const cible = document.getElementById(cibleId);
+  if (!cible) return;
+
+  const langueParlee = document.getElementById("langue-parlee")?.value || "";
+  const langues = getToutesLanguesChoisies()
+    .sort((a, b) => (a.langue || "").localeCompare(b.langue || "", "fr"));
+
+  if (!langueParlee && langues.length === 0) {
+    cible.innerHTML = `<p class="muted">Aucune langue sélectionnée.</p>`;
+    return;
+  }
+
+  const items = [];
+  if (langueParlee) {
+    items.push(`<li><strong>${escapeHtml(langueParlee)}</strong> — Langue maternelle</li>`);
+  }
+  langues.forEach(item => {
+    const estAcquise = languesValidees.has(item.id);
+    const statut = estAcquise ? "Acquise" : "Demandée";
+    items.push(`<li><strong>${escapeHtml(item.langue)}</strong> — ${escapeHtml(statut)}${item.justification ? ` · ${escapeHtml(item.justification)}` : ""}</li>`);
+  });
+
+  cible.innerHTML = `<ul class="condense-list">${items.join("")}</ul>`;
 }
 
 function calculerPuissanceBase(sphereChoisie) {
@@ -4185,6 +4502,7 @@ function renderCondenseImpression() {
   );
 
   renderRecettesCondensees("condense-recettes");
+  renderLanguesCondensees("condense-langues");
 
   const elements = [];
   if (domaines.length) {
@@ -4488,6 +4806,7 @@ function refreshAffichage() {
   renderDomainesSupplementaires();
   renderSorts();
   renderRecettes();
+  renderLangues();
   renderResumeChoix();
   renderTrameScenaristique();
   renderCondenseImpression();
@@ -4773,6 +5092,9 @@ appliquerSelectionsImportees(data.acquis_valides?.competences, "competence", tru
   chargerRecettesDepuisJson(data.recettes?.acquis_valides || {}, recettesValidees);
   chargerRecettesDepuisJson(data.recettes?.demandes_nouvelles || {}, recettesDemandes);
 
+  chargerLanguesDepuisJson(data.langues_supplementaires?.acquis_valides, languesValidees);
+  chargerLanguesDepuisJson(data.langues_supplementaires?.demandes_nouvelles, languesDemandees);
+
   renderDomainesSupplementaires();
 
 if (domainesSupplementairesImportes.length > 0) {
@@ -4930,6 +5252,11 @@ function construireExportJSON() {
       demandes_nouvelles: serialiserRecettesPourJson(recettesDemandes)
     },
 
+    langues_supplementaires: {
+      acquis_valides: serialiserLanguesPourJson(languesValidees),
+      demandes_nouvelles: serialiserLanguesPourJson(languesDemandees)
+    },
+
  acquis_valides: {
   competences: acquisCompetences,
   sorts: acquisSorts,
@@ -5074,6 +5401,11 @@ mettreAJourLangueParlee();
     accordionRecettesPoisons.open = etatAccordionRecettesPoisons;
     accordionRecettesPoisons.addEventListener("toggle", () => { etatAccordionRecettesPoisons = accordionRecettesPoisons.open; });
   }
+  const accordionLanguesSupplementaires = document.getElementById("accordion-langues-supplementaires");
+  if (accordionLanguesSupplementaires) {
+    accordionLanguesSupplementaires.open = etatAccordionLanguesSupplementaires;
+    accordionLanguesSupplementaires.addEventListener("toggle", () => { etatAccordionLanguesSupplementaires = accordionLanguesSupplementaires.open; });
+  }
 
   const accordionResumeChoix = document.getElementById("accordion-resume-choix");
   if (accordionResumeChoix) {
@@ -5113,6 +5445,18 @@ document.getElementById("talent").addEventListener("change", () => {
     mettreAJourLangueParlee();
     refreshAffichage();
   });
+
+  const selectLangueSuppl = document.getElementById("langue-suppl-select");
+  if (selectLangueSuppl) {
+    selectLangueSuppl.addEventListener("change", () => {
+      const autreInput = document.getElementById("langue-suppl-autre");
+      if (autreInput) autreInput.style.display = selectLangueSuppl.value === "__autre__" ? "" : "none";
+    });
+  }
+  const btnAjouterLangueSuppl = document.getElementById("btn-ajouter-langue-suppl");
+  if (btnAjouterLangueSuppl) {
+    btnAjouterLangueSuppl.addEventListener("click", ajouterLangueSupplementaire);
+  }
 
 document.getElementById("nom-joueur").addEventListener("input", refreshAffichage);
 document.getElementById("nom-personnage").addEventListener("input", refreshAffichage);
