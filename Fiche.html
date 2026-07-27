@@ -1054,7 +1054,7 @@
             <option value="Eau">Eau</option>
             <option value="Foret">Forêt</option>
             <option value="Terre">Terre</option>
-            <option value="Mort">Mort</option>
+            <!-- Domaine "Mort" retiré du choix libre : uniquement débloqué par l'organisation (voir chargement JSON plus bas) -->
             </select>
         </div>
         <div id="zone-domaines-supplementaires"></div>
@@ -2405,7 +2405,7 @@ const recettesData = {
   ]
 };
 
-const VERSION_FICHE = "V26.5"; // Ajout des langues
+const VERSION_FICHE = "V26.5"; // Ajout des langues et blocage du Domaine Mort
 
 const selections = new Map();
 const validationsFigees = new Map();
@@ -2567,7 +2567,8 @@ function getDomainesSecondairesSelectionnes() {
 }
 
 function getDomainesMagiquesDisponibles() {
-  return ["Ciel", "Eau", "Foret", "Terre", "Mort"];
+  // "Mort" n'est jamais proposé au choix du joueur : uniquement débloqué par l'organisation.
+  return ["Ciel", "Eau", "Foret", "Terre"];
 }
 
 function renderDomainesSupplementaires() {
@@ -2613,6 +2614,19 @@ function renderDomainesSupplementaires() {
       option.textContent = domaine;
       select.appendChild(option);
     });
+
+    // Domaine "Mort" déjà débloqué par l'organisation pour ce joueur (présent dans les données importées) :
+    // on le réaffiche pour ne pas effacer un déblocage existant, sans jamais l'offrir comme nouveau choix.
+    if (
+      anciennesValeurs[i] &&
+      String(anciennesValeurs[i]).trim().toLowerCase() === "mort" &&
+      !Array.from(select.options).some(opt => opt.value === anciennesValeurs[i])
+    ) {
+      const optionMort = document.createElement("option");
+      optionMort.value = anciennesValeurs[i];
+      optionMort.textContent = "Mort (débloqué par l'organisation)";
+      select.appendChild(optionMort);
+    }
 
     if (
       anciennesValeurs[i] &&
@@ -5032,7 +5046,24 @@ function importerFicheJSON(data) {
   }
 
   if (data.magie) {
-    document.getElementById("domaine-magique").value = data.magie.domaine_principal || "";
+    const selectDomaine = document.getElementById("domaine-magique");
+    const domainePrincipalImporte = data.magie.domaine_principal || "";
+
+    // Filet de sécurité : si une fiche existante porte déjà "Mort" comme domaine principal
+    // (ancien export, ou déblocage organisation), on ne perd pas la donnée même si l'option
+    // n'est plus proposée au choix libre.
+    if (
+      domainePrincipalImporte &&
+      String(domainePrincipalImporte).trim().toLowerCase() === "mort" &&
+      !Array.from(selectDomaine.options).some(opt => opt.value === domainePrincipalImporte)
+    ) {
+      const optionMort = document.createElement("option");
+      optionMort.value = domainePrincipalImporte;
+      optionMort.textContent = "Mort (débloqué par l'organisation)";
+      selectDomaine.appendChild(optionMort);
+    }
+
+    selectDomaine.value = domainePrincipalImporte;
   }
 
   calendrierGN.length = 0; // calendrier GN fourni par l'organisation
