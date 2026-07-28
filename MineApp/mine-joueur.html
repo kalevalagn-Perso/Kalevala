@@ -25,9 +25,24 @@
   --core-glow:rgba(139,26,26,0.4);
   --mono:     'Share Tech Mono', monospace;
   --head:     'Oswald', sans-serif;
+
+  /* Largeur du panneau principal — s'adapte à la largeur d'écran.
+     Mobile : reste proche de 100vw comme avant.
+     Tablette / desktop large : plafond à 720px pour ne pas dépasser
+     ~78-80 caractères/ligne (au-delà, la lecture redevient inconfortable). */
+  --panel-max: clamp(560px, 92vw, 720px);
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
+
+html { font-size: 16px; }
+
+/* Tablette et plus large : texte physiquement plus grand (tout est en rem)
+   pour rester confortable à la distance de lecture d'un écran 10+ pouces,
+   sans agrandir le panneau au point de dépasser la longueur de ligne optimale. */
+@media (min-width: 700px) {
+  html { font-size: 18px; }
+}
 
 body {
   background: var(--bg);
@@ -67,7 +82,7 @@ h1 {
 
 /* ── MAIN PANEL ── */
 .panel {
-  width: 100%; max-width: 560px;
+  width: 100%; max-width: var(--panel-max);
   background: var(--panel);
   border: 1px solid var(--border);
   position: relative; z-index: 1;
@@ -357,7 +372,7 @@ h1 {
 }
 
 /* ── END SCREEN ── */
-#end-screen { width:100%; max-width:560px; position:relative; z-index:1; }
+#end-screen { width:100%; max-width:var(--panel-max); position:relative; z-index:1; }
 .end-header {
   background: var(--panel); border: 1px solid var(--border);
   padding: 20px; margin-bottom: 1px;
@@ -476,7 +491,7 @@ h1 {
 /* ── ÉCRAN DE DÉMARRAGE ── */
 #start-screen {
   position: relative; z-index: 10;
-  max-width: 560px; width: 100%;
+  max-width: var(--panel-max); width: 100%;
   background: var(--panel);
   border: 1px solid var(--border);
   padding: 48px 40px;
@@ -523,6 +538,13 @@ h1 {
   background: rgba(200,120,32,0.1);
   box-shadow: 0 0 20px rgba(200,120,32,0.2);
 }
+.mj-link {
+  display: block; text-align: center; margin-top: 16px;
+  font-size: 0.65rem; letter-spacing: 2px; color: var(--dim);
+  text-transform: uppercase; text-decoration: none;
+  transition: color 0.2s;
+}
+.mj-link:hover { color: var(--amber); }
 #player-name::placeholder {
   color: var(--dim);
   opacity: 1;
@@ -539,7 +561,7 @@ h1 {
   pointer-events: all;
 }
 .agony-text {
-  max-width: 460px; padding: 40px;
+  max-width: clamp(460px, 74vw, 600px); padding: 40px;
   text-align: center;
   font-family: var(--mono);
   font-size: 1rem; line-height: 1.85;
@@ -582,9 +604,10 @@ h1 {
   </label>
 </div>
 <button class="start-btn" onclick="enterMine()">⛏ Entrer dans la mine</button>
+<a href="#" class="mj-link" onclick="event.preventDefault(); openMJView();">🗺 Vue Maître de Jeu</a>
 </div>
 
-<div id="game-wrap" style="display:none; width:100%; max-width:560px;">
+<div id="game-wrap" style="display:none; width:100%; max-width:var(--panel-max);">
 <h1>⛏ La Mine</h1>
 <div class="subtitle">Exploration — Interface Joueur</div>
 
