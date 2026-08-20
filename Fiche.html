@@ -1296,23 +1296,12 @@
      let modeFiche = "creation";
      let idJoueur = ""; // UUID permanent généré à la première exportation
 
-     function getIndexDernierGN() {
-  const participations = getParticipationsGN();
-
-  if (participations.length === 0) {
-    return -1;
-  }
-
-  const dernierGN = participations[participations.length - 1];
-  return calendrierGN.findIndex(gn => gn.gn_id === dernierGN.gn_id);
-}
-
 function compterParticipationsDepuisGnIndex(gnIndexReference) {
   if (gnIndexReference == null) return 0;
 
   return getParticipationsGN().filter(gn => {
     const indexGn = calendrierGN.findIndex(item => item.gn_id === gn.gn_id);
-    return indexGn >= gnIndexReference;
+    return indexGn > gnIndexReference;
   }).length;
 }
 
@@ -1341,9 +1330,14 @@ function verifierProgressionGN(type, id, niveauVise) {
   // Si on comble un trou ET le niveau précédent est officiel, utiliser sa date pour la vérif GN
   if (niveauActuel > niveauVise && precedentOfficiel) {
     // Vérifier les GN depuis l'acquisition du niveau précédent
-    const gnIndexPrecedent = metaPrecedent.gn_id
-      ? calendrierGN.findIndex(gn => gn.gn_id === metaPrecedent.gn_id)
-      : -1;
+    const gnIndexPrecedent = (!metaPrecedent.gn_id || metaPrecedent.gn_id === "CREATION")
+      ? -1
+      : (() => {
+          const idx = calendrierGN.findIndex(gn => gn.gn_id === metaPrecedent.gn_id);
+          // gn_id renseigné mais absent du calendrier (GN supprimé/renommé) : on bloque plutôt
+          // que de traiter ça comme "avant tout GN", ce qui créditerait à tort tout l'historique.
+          return idx === -1 ? null : idx;
+        })();
     const nbParticipations = compterParticipationsDepuisGnIndex(gnIndexPrecedent);
     if (nbParticipations < 2) {
       const restant = 2 - nbParticipations;
@@ -2405,7 +2399,7 @@ const recettesData = {
   ]
 };
 
-const VERSION_FICHE = "V26.6"; // Modification du domaine de la mort
+const VERSION_FICHE = "V26.7"; // Correction délai 2 GN (> au lieu de >=) et fallback gn_id introuvable
 
 const selections = new Map();
 const validationsFigees = new Map();
@@ -4996,9 +4990,14 @@ function appliquerSelectionsImportees(liste, type, estFige = true) {
 
     const metaHistorique = {
       niveau: niveau,
-      gnIndex: item.gn_id && item.gn_id !== "CREATION"
-        ? calendrierGN.findIndex(gn => gn.gn_id === item.gn_id)
-        : -1,
+      gnIndex: (!item.gn_id || item.gn_id === "CREATION")
+        ? -1
+        : (() => {
+            const idx = calendrierGN.findIndex(gn => gn.gn_id === item.gn_id);
+            // gn_id renseigné mais absent du calendrier (GN supprimé/renommé) : on bloque plutôt
+            // que de traiter ça comme "avant tout GN", ce qui créditerait à tort tout l'historique.
+            return idx === -1 ? null : idx;
+          })(),
       date: item.date || "CREATION",
       gn_id: item.gn_id || "CREATION",
       valide_par: item.valide_par || "Kalevala"
